@@ -1,9 +1,12 @@
+// lib/screens/home_content.dart
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:provider/provider.dart'; // <<< ĐÃ THÊM DÒNG NÀY
 import '../utils/app_colors.dart';
 import '../widgets/product_card.dart';
 import '../models/san_pham.dart';
 import '../services/api_service.dart';
+import '../providers/cart_provider.dart'; // <<< ĐÃ THÊM DÒNG NÀY
 import './book_category_list_screen.dart';
 
 // Đây là widget chỉ chứa phần nội dung của trang chủ
@@ -33,7 +36,7 @@ class _HomeContentState extends State<HomeContent> {
           _buildHeader(),
           _buildBannerSlider(),
           const SizedBox(height: 16),
-          _buildCategoryGrid(),
+          _buildCategoryGrid(), // <<< HÀM NÀY ĐÃ ĐƯỢC SỬA BÊN DƯỚI
           const SizedBox(height: 16),
           buildSectionTitle('📚 Sách bán chạy'),
           buildProductList(),
@@ -61,7 +64,15 @@ class _HomeContentState extends State<HomeContent> {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 12),
+          // BIỂU TƯỢNG MENU (NẾU CẦN, BẠN CÓ THỂ BỎ NẾU KHÔNG DÙNG)
+          // IconButton(
+          //   icon: const Icon(Icons.menu, color: AppColors.card),
+          //   onPressed: () {
+          //     // Xử lý khi nhấn nút menu
+          //     Scaffold.of(context).openDrawer(); // Mở Drawer nếu có
+          //   },
+          // ),
+          const SizedBox(width: 12), // Giữ khoảng cách nếu không có menu
           Expanded(
             child: TextField(
               decoration: InputDecoration(
@@ -89,11 +100,11 @@ class _HomeContentState extends State<HomeContent> {
   // ---------------- BANNER ----------------
   Widget _buildBannerSlider() {
     final bannerItems = [
-      'lib/data/ngontinh/1.jpg',
-      'lib/data/tieuthuyet/1.jpg',
-      'lib/data/kinhdi/1.jpg',
-      'lib/data/vientuong/1.jpg',
-      'lib/data/trinhtham/1.jpg',
+      'assets/images/ngontinh/1.jpg', // <<< ĐÃ THAY ĐỔI ĐƯỜNG DẪN: BẠN CẦN DI CHUYỂN ẢNH VÀO THƯ MỤC assets/images/
+      'assets/images/tieuthuyet/1.jpg',
+      'assets/images/kinhdi/1.jpg',
+      'assets/images/vientuong/1.jpg',
+      'assets/images/trinhtham/1.jpg',
     ];
 
     return Container(
@@ -101,27 +112,45 @@ class _HomeContentState extends State<HomeContent> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(15),
         child: CarouselSlider(
-          items: bannerItems.map((path) =>
-              Image.asset(path, fit: BoxFit.cover, width: 1000)).toList(),
+          items: bannerItems.map((path) {
+            return Image.asset(
+              path,
+              fit: BoxFit.cover,
+              width: 1000,
+              errorBuilder: (context, error, stackTrace) => Container(
+                color: Colors.grey.shade200,
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.broken_image,
+                  size: 48,
+                  color: Colors.grey,
+                ),
+              ),
+            );
+          }).toList(),
           options: CarouselOptions(
             autoPlay: true,
             height: 160,
             viewportFraction: 1.0,
+            autoPlayInterval: const Duration(seconds: 3),
+            autoPlayAnimationDuration: const Duration(milliseconds: 800),
+            autoPlayCurve: Curves.fastOutSlowIn,
           ),
         ),
       ),
     );
   }
 
-  // ---------------- DANH MỤC ----------------
+  // ---------------- DANH MỤC (ĐÃ SỬA) ----------------
   Widget _buildCategoryGrid() {
+    // *** SỬA Ở ĐÂY: Thêm mã (code) cho từng danh mục chính ***
     final categories = [
-      {'icon': Icons.menu_book, 'name': 'Sách', 'color': Colors.blue},
-      {'icon': Icons.toys, 'name': 'Đồ chơi', 'color': Colors.orange},
-      {'icon': Icons.card_giftcard, 'name': 'Lưu niệm', 'color': Colors.green},
-      {'icon': Icons.face, 'name': 'Manga', 'color': Colors.pinkAccent},
-      {'icon': Icons.create, 'name': 'VPP', 'color': Colors.purple},
-      {'icon': Icons.local_offer, 'name': 'Ưu đãi', 'color': Colors.teal},
+      {'icon': Icons.menu_book, 'name': 'Sách', 'color': Colors.blue, 'code': 'SACH'},
+      {'icon': Icons.toys, 'name': 'Đồ chơi', 'color': Colors.orange, 'code': 'DOCHOI'},
+      {'icon': Icons.card_giftcard, 'name': 'Lưu niệm', 'color': Colors.green, 'code': 'LUUNIEM'},
+      {'icon': Icons.face, 'name': 'Manga', 'color': Colors.pinkAccent, 'code': 'MANGA'},
+      {'icon': Icons.create, 'name': 'VPP', 'color': Colors.purple, 'code': 'VPP'},
+      {'icon': Icons.local_offer, 'name': 'Ưu đãi', 'color': Colors.teal, 'code': 'UUDAI'},
     ];
 
     return Padding(
@@ -138,21 +167,20 @@ class _HomeContentState extends State<HomeContent> {
           final category = categories[index];
           return InkWell(
             onTap: () {
-              if (index == 0) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const BookCategoryListScreen()),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                        'Chức năng cho "${category['name']}" sắp ra mắt!'),
-                    duration: const Duration(seconds: 1),
+              // *** SỬA Ở ĐÂY: Kiểm tra và điều hướng ***
+              // (Chúng ta sẽ tạm thời điều hướng tất cả,
+              // bạn có thể thêm lại logic "sắp ra mắt" nếu muốn)
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => BookCategoryListScreen(
+                    // Truyền tham số mà màn hình kia yêu cầu
+                    mainCategoryCode: category['code'] as String,
+                    title: category['name'] as String,
                   ),
-                );
-              }
+                ),
+              );
             },
             borderRadius: BorderRadius.circular(18),
             child: Column(
@@ -199,6 +227,9 @@ class _HomeContentState extends State<HomeContent> {
 
   // ---------------- DANH SÁCH SẢN PHẨM ----------------
   Widget buildProductList() {
+    // Lấy instance của CartProvider, listen: false vì chúng ta chỉ gọi hàm
+    final cartProvider = Provider.of<CartProvider>(context, listen: false); // <<< ĐÃ THÊM DÒNG NÀY
+
     return FutureBuilder<List<SanPham>>(
       future: _productFuture,
       builder: (context, snapshot) {
@@ -206,10 +237,23 @@ class _HomeContentState extends State<HomeContent> {
           return const SizedBox(
               height: 260, child: Center(child: CircularProgressIndicator()));
         } else if (snapshot.hasError) {
+          // Hiển thị lỗi rõ ràng hơn
           return SizedBox(
-              height: 260, child: Center(child: Text('Lỗi tải sản phẩm')));
+              height: 260,
+              child: Center(child: Text('Lỗi tải sản phẩm: ${snapshot.error}')));
         } else {
           final products = snapshot.data ?? [];
+          if (products.isEmpty) {
+            return const SizedBox(
+              height: 260,
+              child: Center(
+                child: Text(
+                  'Không có sản phẩm nào để hiển thị.',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ),
+            );
+          }
           return SizedBox(
             height: 260,
             child: ListView.builder(
@@ -217,11 +261,21 @@ class _HomeContentState extends State<HomeContent> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: products.length,
               itemBuilder: (context, index) {
+                final sanPham = products[index]; // Lấy sản phẩm hiện tại
                 return SizedBox(
                   width: 170,
                   child: ProductCard(
-                    sanPham: products[index],
-                    onAddToCartPressed: () {},
+                    sanPham: sanPham,
+                    // TRUYỀN HÀM THÊM VÀO GIỎ HÀNG THỰC TẾ
+                    onAddToCartPressed: () {
+                      cartProvider.addItem(sanPham);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Đã thêm "${sanPham.tenSP}" vào giỏ hàng!'),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
                   ),
                 );
               },
