@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // <<< Đã import
 import '../models/san_pham.dart';
 import '../services/api_service.dart';
+import '../providers/auth_provider.dart'; // <<< Đã import
 
 class CategoryScreen extends StatefulWidget {
   final String maLSP;
@@ -13,13 +15,42 @@ class CategoryScreen extends StatefulWidget {
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  late Future<List<SanPham>> _futureProducts;
+  // *** BẮT ĐẦU SỬA ***
+  // 1. Chuyển Future thành nullable (có thể rỗng)
+  Future<List<SanPham>>? _futureProducts;
+  // 2. Thêm cờ (flag) để đảm bảo chỉ chạy 1 lần
+  bool _isInit = true;
 
   @override
   void initState() {
     super.initState();
-    // ✅ Gọi API để lấy sản phẩm theo loại
-    _futureProducts = ApiService.fetchProductsByCategory(widget.maLSP);
+    // 3. KHÔNG gọi Provider.of(context) ở đây
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 4. Chỉ chạy logic này 1 LẦN DUY NHẤT
+    if (_isInit) {
+      // 5. Lấy token từ AuthProvider (an toàn)
+      final authToken = Provider.of<AuthProvider>(context, listen: false).authToken;
+
+      // 6. Gọi API và gán cho Future
+      _futureProducts = ApiService.fetchProductsByCategory(widget.maLSP);
+
+      // 7. Đặt cờ thành false để không chạy lại
+      _isInit = false;
+    }
+    // *** KẾT THÚC SỬA ***
+  }
+
+  // Hàm helper để lấy URL ảnh đầy đủ
+  String getFullImageUrl(String? relativeUrl) {
+    if (relativeUrl == null || relativeUrl.isEmpty) {
+      return 'https://via.placeholder.com/150'; // Ảnh mặc định
+    }
+    const String imageBaseUrl = 'http://10.0.2.2:8080';
+    return '$imageBaseUrl$relativeUrl';
   }
 
   @override
@@ -30,7 +61,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         backgroundColor: Colors.blue,
       ),
       body: FutureBuilder<List<SanPham>>(
-        future: _futureProducts,
+        future: _futureProducts, // 8. Dùng Future ở đây
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -58,9 +89,10 @@ class _CategoryScreenState extends State<CategoryScreen> {
               final sp = products[index];
               return GestureDetector(
                 onTap: () {
-                  // 🔜 Sau này có thể điều hướng sang trang chi tiết sản phẩm
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Nhấn vào ${sp.tenSP}')),
+                  // 🔜 Điều hướng sang trang chi tiết sản phẩm
+                  Navigator.of(context).pushNamed(
+                    '/product-detail',
+                    arguments: sp.maSP,
                   );
                 },
                 child: Card(
@@ -76,11 +108,14 @@ class _CategoryScreenState extends State<CategoryScreen> {
                           borderRadius:
                           const BorderRadius.vertical(top: Radius.circular(15)),
                           child: Image.network(
-                            sp.hinhAnh,
+                            getFullImageUrl(sp.hinhAnh),
                             fit: BoxFit.cover,
                             width: double.infinity,
                             errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.image_not_supported),
+                                Image.network(
+                                  'https://via.placeholder.com/150',
+                                  fit: BoxFit.cover,
+                                ),
                           ),
                         ),
                       ),

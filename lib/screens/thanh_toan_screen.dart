@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/cart_service.dart';
+import 'package:provider/provider.dart'; // THÊM DÒNG NÀY ĐỂ SỬ DỤNG PROVIDER
+import '../providers/cart_provider.dart'; // THAY THẾ cart_service.dart BẰNG cart_provider.dart
 import '../utils/app_colors.dart';
 
 class ThanhToanScreen extends StatefulWidget {
@@ -15,7 +16,10 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tongTienHang = CartService.totalPrice;
+    // SỬ DỤNG PROVIDER ĐỂ LẤY THÔNG TIN TỪ CARTPROVIDER
+    final cartProvider = Provider.of<CartProvider>(context);
+
+    final tongTienHang = cartProvider.totalPrice; // SỬA TỪ CartService.totalPrice
     final phiVanChuyen = 30000.0; // Tạm thời cố định phí vận chuyển
     final tongThanhToan = tongTienHang + phiVanChuyen;
 
@@ -123,7 +127,9 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   // TODO: Sau này sẽ xử lý logic đặt hàng ở đây
-                  // Bây giờ chỉ hiển thị thông báo
+                  // Có thể gọi một hàm trong CartProvider để gửi đơn hàng
+                  // và sau đó clear giỏ hàng.
+
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
@@ -134,6 +140,9 @@ class _ThanhToanScreenState extends State<ThanhToanScreen> {
                           child: const Text('OK'),
                           onPressed: () {
                             Navigator.of(ctx).pop(); // Đóng dialog
+                            // Sau khi đặt hàng thành công, có thể clear giỏ hàng
+                            // cartProvider.clearCart();
+                            // Navigator.of(context).popUntil((route) => route.isFirst); // Quay về trang chủ
                           },
                         )
                       ],

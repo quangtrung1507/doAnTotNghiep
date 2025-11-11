@@ -1,22 +1,23 @@
+// lib/widgets/product_card.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../models/san_pham.dart';
-import '../screens/product_detail_screen.dart'; // ✅ BƯỚC 1: IMPORT MÀN HÌNH CHI TIẾT
-import '../services/cart_service.dart';
 import '../utils/app_colors.dart';
+import '../providers/favorite_provider.dart';
 
 class ProductCard extends StatelessWidget {
   final SanPham sanPham;
-  final VoidCallback onAddToCartPressed;
+  final VoidCallback? onAddToCartPressed;
 
   const ProductCard({
     Key? key,
     required this.sanPham,
-    required this.onAddToCartPressed,
+    this.onAddToCartPressed,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Đường dẫn ảnh an toàn
     final String imageUrl = (sanPham.hinhAnh.isNotEmpty &&
         (sanPham.hinhAnh.startsWith('http') ||
             sanPham.hinhAnh.startsWith('https'
@@ -24,15 +25,13 @@ class ProductCard extends StatelessWidget {
         ? sanPham.hinhAnh
         : 'http://10.0.2.2:8080${sanPham.hinhAnh}';
 
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
     return GestureDetector(
       onTap: () {
-        // ✅ BƯỚC 2: THAY THẾ HÀNH ĐỘNG CŨ BẰNG VIỆC ĐIỀU HƯỚNG
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            // Truyền đối tượng 'sanPham' hiện tại vào màn hình chi tiết
-            builder: (context) => ProductDetailScreen(sanPham: sanPham),
-          ),
+        Navigator.of(context).pushNamed(
+          '/product-detail',
+          arguments: sanPham.maSP,
         );
       },
       child: Card(
@@ -42,35 +41,74 @@ class ProductCard extends StatelessWidget {
         ),
         elevation: 3,
         shadowColor: Colors.black12,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 🖼 Ảnh sản phẩm
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    imageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: Colors.grey.shade200,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.broken_image,
-                        size: 48,
-                        color: Colors.grey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      imageUrl,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade200,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.broken_image,
+                          size: 48,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  // Nút yêu thích
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Consumer<FavoriteProvider>( // Lắng nghe FavoriteProvider
+                      builder: (context, favoriteProvider, child) {
+                        final bool isFav = favoriteProvider.isFavorite(sanPham.maSP);
+                        return GestureDetector(
+                          onTap: () {
+                            // <<< ĐÃ SỬA DÒNG NÀY: TRUYỀN TOÀN BỘ ĐỐI TƯỢNG SANPHAM
+                            favoriteProvider.toggleFavorite(sanPham);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isFav
+                                      ? 'Đã xóa "${sanPham.tenSP}" khỏi yêu thích!'
+                                      : 'Đã thêm "${sanPham.tenSP}" vào yêu thích!',
+                                ),
+                                duration: const Duration(seconds: 1),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.8),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isFav ? Icons.favorite : Icons.favorite_border,
+                              color: isFav ? Colors.red : AppColors.textDark,
+                              size: 24,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-
-              // 🏷 Tên sản phẩm
-              Text(
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Text(
                 sanPham.tenSP,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
@@ -80,14 +118,15 @@ class ProductCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
-
-              // 💰 Giá + nút giỏ hàng
-              Row(
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    "${sanPham.gia.toStringAsFixed(0)}đ",
+                    currencyFormatter.format(sanPham.gia),
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w600,
@@ -97,23 +136,14 @@ class ProductCard extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.add_shopping_cart_outlined),
                     color: AppColors.primary,
-                    onPressed: () {
-                      CartService.addItem(sanPham);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Đã thêm "${sanPham.tenSP}" vào giỏ'),
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    },
+                    onPressed: onAddToCartPressed,
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
-
