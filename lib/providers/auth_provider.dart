@@ -1,25 +1,27 @@
-// lib/providers/auth_provider.dart
 import 'package:flutter/material.dart';
-import "package:shared_preferences/shared_preferences.dart";
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 
-// Tạo một Model đơn giản cho User (nếu API trả về thông tin user sau login)
+// Model người dùng tối giản
 class User {
   final String username;
   final String email;
-  final String id; // Hoặc bất kỳ ID nào bạn có
-  // Thêm các trường thông tin khác của user nếu cần, ví dụ:
-  final String? accountCode; // Thêm accountCode
+  final String id;            // dùng accountCode hoặc username
+  final String? accountCode;  // nếu API có
 
-  User({required this.id, required this.username, required this.email, this.accountCode});
+  User({
+    required this.id,
+    required this.username,
+    required this.email,
+    this.accountCode,
+  });
 
   factory User.fromJson(Map<String, dynamic> json) {
-    // Đảm bảo các key ở đây khớp với key trong JSON API trả về
     return User(
-      id: json['accountCode'] ?? json['username'] ?? '', // Sử dụng accountCode làm ID chính nếu có, hoặc username
-      username: json['username'] ?? '',
-      email: json['email'] ?? '',
-      accountCode: json['accountCode'], // Lấy accountCode
+      id: (json['accountCode'] ?? json['username'] ?? '').toString(),
+      username: (json['username'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      accountCode: json['accountCode']?.toString(),
     );
   }
 }
@@ -35,66 +37,45 @@ class AuthProvider with ChangeNotifier {
 
   String? get authToken => _authToken;
   User? get currentUser => _currentUser;
-  bool get isAuthenticated => _authToken != null;
+  bool get isAuthenticated => (_authToken ?? '').isNotEmpty;
   bool get isLoading => _isLoading;
 
   Future<void> _loadAuthToken() async {
     final prefs = await SharedPreferences.getInstance();
     _authToken = prefs.getString('authToken');
-    // Khi khởi động, nếu có token, bạn có thể gọi API để lấy lại thông tin user
-    // hoặc giải mã token nếu nó chứa đủ thông tin
-    // Hiện tại, chúng ta chỉ kiểm tra sự tồn tại của token
-    if (_authToken != null) {
-      // Vì API đăng nhập của bạn trả về toàn bộ thông tin user trong 'data',
-      // việc load token ở đây sẽ không tự động load user.
-      // Bạn có thể cần một API riêng để lấy thông tin user bằng token,
-      // hoặc lưu toàn bộ user object vào SharedPreferences sau khi đăng nhập.
-      // Để đơn giản, nếu có token, ta giả định là đã đăng nhập.
-      // user info sẽ được set khi login thành công.
-      // Nếu bạn muốn user info được giữ lại sau khi app bị tắt, bạn sẽ phải
-      // lưu cả user info vào SharedPreferences cùng với token.
-      // Tạm thời, chúng ta sẽ để _currentUser là null khi load token,
-      // và chỉ set khi đăng nhập thành công.
-    }
     notifyListeners();
   }
 
-  // Phương thức Đăng nhập
+  /// Đăng nhập: đọc token ở data.accessToken như Postman của bạn
   Future<bool> login(String username, String password) async {
     _isLoading = true;
     notifyListeners();
 
-    // ApiService.login bây giờ sẽ trả về toàn bộ Map phản hồi từ API
-    final Map<String, dynamic>? apiResponse = await ApiService.login(username, password);
+    final Map<String, dynamic>? apiResponse =
+    await ApiService.login(username, password);
 
-    if (apiResponse != null && apiResponse['statusCode'] == 200) {
-      // Lấy đối tượng 'data' từ phản hồi API
-      final Map<String, dynamic>? data = apiResponse['data'];
+    // apiResponse có thể là {statusCode, message, data:{...}}
+    final Map<String, dynamic>? data =
+    (apiResponse?['data'] is Map) ? apiResponse!['data'] : apiResponse;
 
-      if (data != null) {
-        final token = data['accessToken']; // Lấy accessToken từ đối tượng 'data'
-        // Tất cả thông tin user nằm trực tiếp trong đối tượng 'data' này
-        final userJson = data;
+    final token = data?['accessToken']?.toString();
+    if (token != null && token.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('authToken', token);
+      _authToken = token;
 
-        if (token != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('authToken', token);
-          _authToken = token;
+      _currentUser = User.fromJson(data!);
 
-          _currentUser = User.fromJson(userJson); // Gán userJson trực tiếp vào User.fromJson
-
-          _isLoading = false;
-          notifyListeners();
-          return true;
-        }
-      }
+      _isLoading = false;
+      notifyListeners();
+      return true;
     }
+
     _isLoading = false;
     notifyListeners();
     return false;
   }
 
-  // Phương thức Đăng xuất
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
@@ -108,15 +89,16 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Phương thức Đăng ký
+  /// Đăng ký: ApiService.register trả về `null` nếu OK, còn lại là chuỗi lỗi
   Future<String?> register(String username, String password, String email) async {
     _isLoading = true;
     notifyListeners();
 
-    final String? errorMessage = await ApiService.register(username, password, email);
+    final String? errorMessage =
+    await ApiService.register(username, password, email);
 
     _isLoading = false;
     notifyListeners();
-    return errorMessage; // Trả về null nếu thành công, chuỗi lỗi nếu thất bại
+    return errorMessage;
   }
 }
