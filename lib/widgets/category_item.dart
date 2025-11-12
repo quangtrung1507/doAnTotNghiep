@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+  import 'package:flutter/material.dart';
 import '../utils/app_colors.dart';
 
 class CategoryItem extends StatelessWidget {

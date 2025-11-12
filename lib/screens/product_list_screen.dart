@@ -1,12 +1,10 @@
-// lib/screens/product_list_screen.dart (Đã sửa theo Giải pháp 2)
+import 'dart:io';
 import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart'; // <<< XÓA IMPORT NÀY
 import '../models/san_pham.dart';
 import '../services/api_service.dart';
-// import '../providers/auth_provider.dart'; // <<< XÓA IMPORT NÀY
 
 class ProductListScreen extends StatefulWidget {
-  final String categoryCode; // Nhận mã 'LSP01'
+  final String categoryCode; // ví dụ: 'LSP01'
   final String title;
 
   const ProductListScreen({
@@ -16,108 +14,130 @@ class ProductListScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ProductListScreenState createState() => _ProductListScreenState();
+  State<ProductListScreen> createState() => _ProductListScreenState();
 }
 
 class _ProductListScreenState extends State<ProductListScreen> {
   late Future<List<SanPham>> _productsFuture;
 
-  // *** SỬA LẠI HÀM NÀY ***
   @override
   void initState() {
     super.initState();
-    // Gọi hàm API 1 tham số (không cần token)
+    _reload();
+  }
+
+  void _reload() {
     _productsFuture = ApiService.fetchProductsByCategory(widget.categoryCode);
   }
 
-  // *** XÓA HÀM didChangeDependencies() ***
-  // @override
-  // void didChangeDependencies() { ... }
-
-  // Hàm helper (Giữ nguyên)
   String getFullImageUrl(String? relativeUrl) {
     if (relativeUrl == null || relativeUrl.isEmpty) {
-      return 'https://via.placeholder.com/150'; // Ảnh mặc định
+      return 'https://via.placeholder.com/600x400?text=No+Image';
     }
-    const String imageBaseUrl = 'http://10.0.2.2:8080';
-    return '$imageBaseUrl$relativeUrl';
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+    final host = Platform.isAndroid ? '10.0.2.2' : 'localhost';
+    const port = 8080;
+    return 'http://$host:$port$relativeUrl';
+  }
+
+  String priceText(SanPham p) {
+    final price = p.gia;
+    final discount = p.discountValue ?? 0;
+    if (discount > 0 && discount < price) {
+      final sale = (price - discount).toStringAsFixed(0);
+      return '$sale đ';
+    }
+    return '${price.toStringAsFixed(0)} đ';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: FutureBuilder<List<SanPham>>(
-        future: _productsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Lỗi: ${snapshot.error}"));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("Không tìm thấy sản phẩm nào."));
-          }
+      appBar: AppBar(title: Text(widget.title)),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(_reload);
+          await _productsFuture;
+        },
+        child: FutureBuilder<List<SanPham>>(
+          future: _productsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Lỗi: ${snapshot.error}'));
+            }
+            final products = snapshot.data ?? [];
+            if (products.isEmpty) {
+              return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
+            }
 
-          final products = snapshot.data!;
-
-          // GridView (Giữ nguyên)
-          return GridView.builder(
-            padding: const EdgeInsets.all(10.0),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10.0,
-              mainAxisSpacing: 10.0,
-              childAspectRatio: 0.7,
-            ),
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                elevation: 3.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Image.network(
-                        getFullImageUrl(product.hinhAnh),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Image.network(
-                              'https://via.placeholder.com/150',
-                              fit: BoxFit.cover
-                          );
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        product.tenSP,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text(
-                        '${product.gia.toStringAsFixed(0)} đ',
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
+            return GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                mainAxisExtent: 260,
+              ),
+              itemCount: products.length,
+              itemBuilder: (context, index) {
+                final p = products[index];
+                return Card(
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: Image.network(
+                          getFullImageUrl(p.hinhAnh),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const ColoredBox(
+                            color: Color(0x11000000),
+                            child: Icon(Icons.image, size: 40),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8.0),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(
+                          p.tenSP,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              priceText(p),
+                              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 6),
+                            if ((p.discountValue ?? 0) > 0 && (p.discountValue ?? 0) < p.gia)
+                              Text(
+                                '${p.gia.toStringAsFixed(0)} đ',
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

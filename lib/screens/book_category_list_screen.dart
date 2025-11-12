@@ -1,137 +1,109 @@
 import 'package:flutter/material.dart';
-// import 'package:provider/provider.dart'; // <<< Đã xóa
 import '../models/loai_san_pham.dart';
 import '../services/api_service.dart';
-// import '../providers/auth_provider.dart'; // <<< Đã xóa
-
-// BẠN CẦN CHỈ ĐỊNH IMPORT NÀY SẼ LÀ PRODUCT_LIST_SCREEN
-import './product_list_screen.dart'; // <<< ĐÃ SỬA: Đổi từ category_screen.dart sang product_list_screen.dart
-
-// BỘ LỌC (GIẢI PHÁP 2: Hardcode)
-const Map<String, List<String>> mainCategoryMapping = {
-  'SACH': [
-    'LSP01', 'LSP02', 'LSP03', 'LSP04', 'LSP05',
-    'LSP06', 'LSP07', 'LSP08', 'LSP09', 'LSP10',
-    'LSP18' // <<< ĐÃ THÊM: Studentbook vào nhóm SÁCH
-  ],
-  'DOCHOI': ['LSP11', 'LSP12'],
-  'VPP': [
-    'LSP13', // Calculator
-    'LSP14', // Note
-    // 'LSP15', // Watch - Tùy chọn: Nếu Watch không phải VPP, bạn có thể cân nhắc di chuyển hoặc tạo nhóm mới
-    'LSP16', // Pen
-    'LSP17', // Draw
-    'LSP19', // CompaEke
-    'LSP20'  // PencilEraser
-  ],
-  // Thêm các mã cho 'LUUNIEM', 'MANGA', 'UUDAI' nếu bạn đã định nghĩa
-  'LUUNIEM': [], // Nếu có mã LSP cụ thể cho "Lưu niệm", thêm vào đây
-  'MANGA': [],   // Nếu có mã LSP cụ thể cho "Manga", thêm vào đây
-  'UUDAI': [],   // Nếu có mã LSP cụ thể cho "Ưu đãi", thêm vào đây
-};
-
+import './product_list_screen.dart';
 
 class BookCategoryListScreen extends StatefulWidget {
-  final String mainCategoryCode; // Ví dụ: 'SACH', 'DOCHOI'
-  final String title; // Ví dụ: 'Sách', 'Đồ chơi'
+  /// mainCategoryCode: SACH / DOCHOI / LUUNIEM / MANGA / VPP
+  final String mainCategoryCode;
+  final String title;
 
   const BookCategoryListScreen({
-    Key? key,
+    super.key,
     required this.mainCategoryCode,
     required this.title,
-  }) : super(key: key);
+  });
 
   @override
   State<BookCategoryListScreen> createState() => _BookCategoryListScreenState();
 }
 
 class _BookCategoryListScreenState extends State<BookCategoryListScreen> {
-  late Future<List<LoaiSanPham>> _allCategoriesFuture;
+  late Future<List<LoaiSanPham>> _subCatsFuture;
 
   @override
   void initState() {
     super.initState();
-    // Gọi API fetchAllCategories để lấy TẤT CẢ danh mục
-    _allCategoriesFuture = ApiService.fetchAllCategories();
+    // ❗ Không dùng /categories/by-main (JSON lặp)
+    // → Lấy toàn bộ /categories rồi lọc client-side theo mainCategoryCode
+    _subCatsFuture = _loadSubCategories();
   }
 
-  // Hàm lọc danh sách các loại sản phẩm
-  List<LoaiSanPham> _filterCategories(List<LoaiSanPham> allCategories) {
-    // Lấy danh sách các mã LSP con (ví dụ: ['LSP01', 'LSP02', ...])
-    // dựa trên mã danh mục chính (ví dụ: 'SACH')
-    final codesToShow = mainCategoryMapping[widget.mainCategoryCode];
+  Future<List<LoaiSanPham>> _loadSubCategories() async {
+    final all = await ApiService.fetchAllCategories();
+    return _filterCategoriesForMain(all, widget.mainCategoryCode);
+  }
 
-    if (codesToShow == null) {
-      // Nếu mainCategoryCode không có trong map (ví dụ: 'MANGA' nhưng chưa có mã LSP nào)
-      return [];
+  /// Mapping theo tên danh mục (categoryName) → nhóm chính.
+  List<LoaiSanPham> _filterCategoriesForMain(List<LoaiSanPham> all, String main) {
+    final m = main.toUpperCase();
+    bool nameHas(LoaiSanPham c, List<String> keys) {
+      final n = c.tenLSP.toLowerCase();
+      return keys.any((k) => n.contains(k));
     }
-    // Lọc danh sách đầy đủ các loại sản phẩm để chỉ giữ lại những loại có mã LSP
-    // nằm trong danh sách codesToShow
-    return allCategories.where((category) {
-      return codesToShow.contains(category.maLSP);
-    }).toList();
-  }
 
+    switch (m) {
+      case 'SACH':
+        return all.where((c) => nameHas(c, [
+          'romance','horror','fantasy','business','drama','biography','cook','poetry','art','architecture'
+        ])).toList();
+      case 'DOCHOI':
+        return all.where((c) => nameHas(c, ['modelkit','figure'])).toList();
+      case 'LUUNIEM':
+        return all.where((c) => nameHas(c, ['watch','gift'])).toList();
+      case 'MANGA':
+        return all.where((c) => nameHas(c, ['manga'])).toList();
+      case 'VPP':
+        return all.where((c) => nameHas(c, [
+          'calculator','note','pen','draw','studentbook','compa','pencil','eraser'
+        ])).toList();
+      default:
+        return all;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title), // Hiển thị tiêu đề động (ví dụ: "Sách", "Đồ chơi")
-        backgroundColor: Colors.blue,
-      ),
+      appBar: AppBar(title: Text(widget.title)),
       body: FutureBuilder<List<LoaiSanPham>>(
-        future: _allCategoriesFuture, // Sử dụng Future để tải dữ liệu danh mục
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator()); // Hiển thị loading
+        future: _subCatsFuture,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return Center(child: Text("Lỗi tải dữ liệu: ${snapshot.error}")); // Hiển thị lỗi
+          if (snap.hasError) {
+            return Center(child: Text('Lỗi tải dữ liệu: ${snap.error}'));
           }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("Không tìm thấy danh mục nào.")); // Không có dữ liệu
-          }
-
-          // Lọc danh sách đầy đủ các loại sản phẩm để có được các thể loại con của nhóm chính
-          final categories = _filterCategories(snapshot.data!);
-
-          if (categories.isEmpty) {
-            return const Center(child: Text("Không tìm thấy danh mục con nào.")); // Không có danh mục con
+          final cats = snap.data ?? [];
+          if (cats.isEmpty) {
+            return const Center(child: Text('Không tìm thấy danh mục con nào.'));
           }
 
-          // Hiển thị danh sách các loại sản phẩm con dưới dạng ListView
           return ListView.builder(
-            itemCount: categories.length,
-            itemBuilder: (ctx, index) {
-              final category = categories[index];
+            itemCount: cats.length,
+            itemBuilder: (_, i) {
+              final c = cats[i];
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
-                elevation: 3,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                   leading: CircleAvatar(
                     backgroundColor: Colors.blue.shade100,
                     child: Text(
-                      category.tenLSP.isNotEmpty ? category.tenLSP[0] : '?',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                      c.tenLSP.isNotEmpty ? c.tenLSP[0] : '?',
+                      style: const TextStyle(color: Colors.blue),
                     ),
                   ),
-                  title: Text(
-                    category.tenLSP,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(category.moTa),
+                  title: Text(c.tenLSP, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(c.moTa),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    // <<< ĐÃ SỬA: Điều hướng đến ProductListScreen
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => ProductListScreen( // Thay CategoryScreen bằng ProductListScreen
-                          categoryCode: category.maLSP, // Đảm bảo tên tham số đúng
-                          title: category.tenLSP,
+                        builder: (_) => ProductListScreen(
+                          categoryCode: c.maLSP,
+                          title: c.tenLSP,
                         ),
                       ),
                     );

@@ -33,50 +33,60 @@ class SanPham {
     this.isFavorite = false,
   });
 
-  // lib/models/san_pham.dart
-
+  /// Hỗ trợ cả JSON phẳng và JSON lồng dạng { "productEntity": {...} }
   factory SanPham.fromJson(Map<String, dynamic> json) {
+    final src = (json['productEntity'] is Map<String, dynamic>)
+        ? (json['productEntity'] as Map<String, dynamic>)
+        : json;
+
+    String _s(String k) => (src[k] ?? '').toString();
+    double _d(String k) {
+      final v = src[k];
+      if (v == null) return 0.0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0.0;
+    }
+    int _i(String k) {
+      final v = src[k];
+      if (v == null) return 0;
+      if (v is num) return v.toInt();
+      return int.tryParse(v.toString()) ?? 0;
+    }
+
     return SanPham(
-      // Đảm bảo tất cả các trường String đều có '?? ''
-      maSP: json['productCode'] ?? '',
-      tenSP: json['productName'] ?? '',
-      moTa: json['description'] ?? '',
-      hinhAnh: json['image'] ?? '',
-      author: json['author'] ?? '',
-      publisher: json['publisher'] ?? '',
-
-      // Đảm bảo các trường số có '?? 0'
-      gia: (json['price'] as num?)?.toDouble() ?? 0.0,
-      importPrice: (json['importPrice'] as num?)?.toDouble() ?? 0.0,
-
-      // Các trường nullable (String?) thì có thể nhận null
-      promotionCode: json['promotionCode'],
-      promotionName: json['promotionName'],
-      discountValue: (json['discountValue'] as num?)?.toDouble(),
-
-      // Các trường String khác
-      maLSP: json['categoryCode'] ?? '',
-      categoryName: json['categoryName'] ?? '',
-      stockQuantity: (json['stockQuantity'] as num?)?.toInt() ?? 0,
+      maSP: _s('productCode'),
+      tenSP: _s('productName'),
+      moTa: _s('description'),
+      hinhAnh: _s('image'),
+      author: _s('author'),
+      publisher: _s('publisher'),
+      gia: _d('price'),
+      importPrice: _d('importPrice'),
+      promotionCode: src['promotionCode']?.toString(),
+      promotionName: src['promotionName']?.toString(),
+      discountValue: (src['discountValue'] is num)
+          ? (src['discountValue'] as num).toDouble()
+          : double.tryParse(src['discountValue']?.toString() ?? ''),
+      maLSP: _s('categoryCode'),
+      categoryName: _s('categoryName'),
+      stockQuantity: _i('stockQuantity'),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'productCode': maSP,
-      'productName': tenSP,
-      'description': moTa,
-      'image': hinhAnh,
-      'author': author,
-      'publisher': publisher,
-      'price': gia,
-      'importPrice': importPrice,
-      'promotionCode': promotionCode,
-      'promotionName': promotionName,
-      'discountValue': discountValue,
-      'categoryCode': maLSP,
-      'categoryName': categoryName,
-      'stockQuantity': stockQuantity,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'productCode': maSP,
+    'productName': tenSP,
+    'description': moTa,
+    'image': hinhAnh,
+    'author': author,
+    'publisher': publisher,
+    'price': gia,
+    'importPrice': importPrice,
+    'promotionCode': promotionCode,
+    'promotionName': promotionName,
+    'discountValue': discountValue,
+    'categoryCode': maLSP,
+    'categoryName': categoryName,
+    'stockQuantity': stockQuantity,
+  };
 }
