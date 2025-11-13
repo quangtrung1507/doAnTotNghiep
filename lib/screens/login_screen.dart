@@ -1,16 +1,18 @@
-// lib/screens/dang_nhap_screen.dart
+// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/favorite_provider.dart'; // ⬅️ MỚI: Thêm import
+import '../providers/cart_provider.dart';     // ⬅️ MỚI: Thêm import
 
-class DangNhapScreen extends StatefulWidget {
-  const DangNhapScreen({Key? key}) : super(key: key);
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({Key? key}) : super(key: key);
 
   @override
-  State<DangNhapScreen> createState() => _DangNhapScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _DangNhapScreenState extends State<DangNhapScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -95,19 +97,61 @@ class _DangNhapScreenState extends State<DangNhapScreen> {
                         ),
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
+                            // 1. Gọi API Đăng nhập
                             final success = await authProvider.login(
                               _usernameController.text,
                               _passwordController.text,
                             );
 
+                            if (!mounted) return;
+
                             if (success) {
+
+                              // ---------------------------------------------
+                              // ⬅️ MỚI: TẢI DỮ LIỆU SAU KHI LOGIN
+                              // ---------------------------------------------
+                              // Lấy customerCode vừa đăng nhập
+                              final customerCode = authProvider.customerCode;
+
+                              if (customerCode != null && customerCode.isNotEmpty) {
+                                print('Login thành công, đang tải dữ liệu cho $customerCode');
+                                try {
+                                  // Báo cho FavoriteProvider tải dữ liệu về RAM
+                                  await Provider.of<FavoriteProvider>(context, listen: false)
+                                      .fetchFavorites(customerCode);
+                                } catch (e) {
+                                  print("Lỗi tải Yêu thích: $e");
+                                }
+
+                                // (Tùy chọn) Báo cho CartProvider tải dữ liệu về RAM
+                                // try {
+                                //   await Provider.of<CartProvider>(context, listen: false)
+                                //       .fetchCart(customerCode); // Giả sử bạn có hàm fetchCart
+                                // } catch (e) {
+                                //   print("Lỗi tải Giỏ hàng (Bỏ qua nếu chưa làm): $e");
+                                // }
+                              }
+                              // ---------------------------------------------
+                              // KẾT THÚC PHẦN MỚI
+                              // ---------------------------------------------
+
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Đăng nhập thành công!')),
                               );
-                              Navigator.of(context).pushReplacementNamed('/'); // Quay về màn hình chính
+
+                              // 2. Điều hướng (giữ nguyên logic cũ)
+                              if (Navigator.canPop(context)) {
+                                Navigator.of(context).pop(true);
+                              } else {
+                                Navigator.of(context).pushReplacementNamed('/home');
+                              }
+
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Đăng nhập thất bại. Kiểm tra lại tên đăng nhập và mật khẩu.')),
+                                const SnackBar(
+                                  content: Text('Đăng nhập thất bại. Vui lòng kiểm tra lại!'),
+                                  backgroundColor: Colors.red,
+                                ),
                               );
                             }
                           }

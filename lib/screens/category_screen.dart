@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart'; // <<< Đã import
-import '../models/san_pham.dart';
+import '../models/product.dart';
 import '../services/api_service.dart';
 import '../providers/auth_provider.dart'; // <<< Đã import
 
@@ -17,7 +17,7 @@ class CategoryScreen extends StatefulWidget {
 class _CategoryScreenState extends State<CategoryScreen> {
   // *** BẮT ĐẦU SỬA ***
   // 1. Chuyển Future thành nullable (có thể rỗng)
-  Future<List<SanPham>>? _futureProducts;
+  Future<List<Product>>? _futureProducts;
   // 2. Thêm cờ (flag) để đảm bảo chỉ chạy 1 lần
   bool _isInit = true;
 
@@ -60,7 +60,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         title: Text(widget.tenLSP),
         backgroundColor: Colors.blue,
       ),
-      body: FutureBuilder<List<SanPham>>(
+      body: FutureBuilder<List<Product>>(
         future: _futureProducts, // 8. Dùng Future ở đây
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {

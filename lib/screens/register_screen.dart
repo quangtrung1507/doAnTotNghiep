@@ -1,15 +1,20 @@
+// lib/screens/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
-class DangKyScreen extends StatefulWidget {
-  const DangKyScreen({Key? key}) : super(key: key);
+// ⬇️ ĐÃ SỬA TÊN CLASS
+class RegisterScreen extends StatefulWidget {
+  // ⬇️ ĐÃ SỬA TÊN CONSTRUCTOR
+  const RegisterScreen({Key? key}) : super(key: key);
 
   @override
-  State<DangKyScreen> createState() => _DangKyScreenState();
+  // ⬇️ ĐÃ SỬA TÊN STATE
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _DangKyScreenState extends State<DangKyScreen> {
+// ⬇️ ĐÃ SỬA TÊN STATE
+class _RegisterScreenState extends State<RegisterScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _emailController = TextEditingController();
@@ -38,7 +43,6 @@ class _DangKyScreenState extends State<DangKyScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ... (Các TextFormField giữ nguyên)
                 const Text(
                   'Tạo tài khoản mới',
                   style: TextStyle(
@@ -119,27 +123,23 @@ class _DangKyScreenState extends State<DangKyScreen> {
                         ),
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
-                            // *** BẮT ĐẦU SỬA ***
-                            // 1. Đổi tên biến 'success' thành 'errorMessage'
+                            // (Logic của bạn đã đúng)
                             final String? errorMessage = await authProvider.register(
                               _usernameController.text,
                               _passwordController.text,
                               _emailController.text,
                             );
 
-                            // 2. Kiểm tra nếu 'errorMessage' là null (nghĩa là thành công)
                             if (errorMessage == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Đăng ký thành công! Vui lòng đăng nhập.')),
                               );
                               Navigator.of(context).pushReplacementNamed('/login');
                             } else {
-                              // 3. Nếu thất bại, hiển thị thông báo lỗi từ API
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(errorMessage)), // Hiển thị lỗi thật
+                                SnackBar(content: Text(errorMessage)),
                               );
                             }
-                            // *** KẾT THÚC SỬA ***
                           }
                         },
                         child: const Text(

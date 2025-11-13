@@ -1,12 +1,11 @@
-// lib/screens/main_screen.dart (Phiên bản cuối cùng, đã gộp)
+// lib/screens/main_screen.dart (Đã sửa lỗi treo)
 import 'package:flutter/material.dart';
 
 // Import NỘI DUNG của các tab
-import 'home_content.dart'; // <<< Đã sửa: Import nội dung trang chủ
-import 'favorite_screen.dart'; // Màn hình Yêu thích
-import 'cart_screen.dart'; // Màn hình Giỏ hàng
-import 'profile_screen.dart'; // Màn hình Tài khoản
-// import 'cart_screen.dart'; // <<< Xóa dòng lặp lại này
+import 'home_content.dart';
+import 'favorite_screen.dart';
+import 'cart_screen.dart';
+import 'profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -16,16 +15,19 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0; // Index của tab hiện tại
+  int _selectedIndex = 0;
 
-  // Danh sách các widget/màn hình tương ứng với các tab
-  // *** SỬA Ở ĐÂY: Xóa "const" ***
-  static final List<Widget> _widgetOptions = <Widget>[
-    HomeContent(),
-    FavoriteScreen(),
-    CartScreen(),
-    ProfileScreen(),
+  // ⬇️ ⬇️ ⬇️ THAY ĐỔI QUAN TRỌNG ⬇️ ⬇️ ⬇️
+  // Chúng ta KHÔNG dùng 'static' VÀ KHÔNG khởi tạo chúng ngay lập tức
+  // Chúng ta sẽ dùng một danh sách các "hàm xây dựng" (builders)
+  // để đảm bảo các tab chỉ được tạo KHI CẦN
+  final List<Widget Function()> _widgetBuilders = [
+        () => HomeContent(),
+        () => FavoriteScreen(),
+        () => CartScreen(),
+        () => ProfileScreen(),
   ];
+  // ⬆️ ⬆️ ⬆️ KẾT THÚC THAY ĐỔI ⬆️ ⬆️ ⬆️
 
   void _onItemTapped(int index) {
     setState(() {
@@ -36,11 +38,14 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Dùng IndexedStack để giữ trạng thái các tab (không bị tải lại)
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _widgetOptions,
+      // ⬇️ ⬇️ ⬇️ THAY ĐỔI QUAN TRỌNG ⬇️ ⬇️ ⬇️
+      // BỎ DÙNG IndexedStack (thứ tải cả 4 tab)
+      // Dùng cách đơn giản này để nó CHỈ TẢI 1 TAB (tab đang chọn)
+      body: Center(
+        child: _widgetBuilders[_selectedIndex](), // Chỉ build widget của tab hiện tại
       ),
+      // ⬆️ ⬆️ ⬆️ KẾT THÚC THAY ĐỔI ⬆️ ⬆️ ⬆️
+
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -65,7 +70,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blueAccent, // (Màu này từ tệp main_screen cũ)
+        selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,

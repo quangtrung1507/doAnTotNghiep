@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart'; // Import Provider
-import '../providers/cart_provider.dart'; // Import CartProvider mới
-import '../providers/auth_provider.dart'; // Import AuthProvider để kiểm tra đăng nhập
-import '../screens/thanh_toan_screen.dart';
-import '../screens/dang_nhap_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
+import '../screens/checkout_screen.dart';
+import '../screens/login_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({Key? key}) : super(key: key);
@@ -13,18 +13,18 @@ class CartScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
-    // Sử dụng Consumer để lắng nghe CartProvider
-    return Consumer2<CartProvider, AuthProvider>( // Lắng nghe cả CartProvider và AuthProvider
+    return Consumer2<CartProvider, AuthProvider>(
       builder: (context, cartProvider, authProvider, child) {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Giỏ Hàng'),
-            automaticallyImplyLeading: false, // Ẩn nút back vì đây là tab chính
+            automaticallyImplyLeading: false,
           ),
-          body: cartProvider.isLoading // Thêm trạng thái loading từ CartProvider (nếu có logic tải từ API)
+          body: cartProvider.isLoading
               ? const Center(child: CircularProgressIndicator())
               : cartProvider.items.isEmpty
               ? Center(
+            // (Code UI khi giỏ hàng rỗng... giữ nguyên)
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -37,7 +37,7 @@ class CartScreen extends StatelessWidget {
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/'); // Về trang chủ
+                    DefaultTabController.of(context).animateTo(0);
                   },
                   child: const Text('Tiếp tục mua sắm'),
                 ),
@@ -48,45 +48,45 @@ class CartScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: ListView.builder(
+                  // (Code ListView... giữ nguyên)
                   itemCount: cartProvider.items.length,
                   itemBuilder: (context, index) {
                     final item = cartProvider.items[index];
+                    final product = item.product;
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
                       child: ListTile(
                         leading: Image.network(
-                          // Sửa lại URL ảnh
-                          item.sanPham.hinhAnh.startsWith('http')
-                              ? item.sanPham.hinhAnh
-                              : 'http://10.0.2.2:8080${item.sanPham.hinhAnh}',
+                          product.hinhAnh.startsWith('http')
+                              ? product.hinhAnh
+                              : 'http://10.0.2.2:8080${product.hinhAnh}',
                           width: 50,
                           height: 50,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
-                              Image.asset(
-                                'lib/data/ngontinh/1.jpg', // Placeholder
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                              ),
+                          const SizedBox(
+                            width: 50,
+                            height: 50,
+                            child: Icon(Icons.image_not_supported, color: Colors.grey),
+                          ),
                         ),
-                        title: Text(item.sanPham.tenSP),
-                        subtitle: Text(currencyFormatter.format(item.sanPham.gia)),
+                        title: Text(product.tenSP),
+                        subtitle: Text(currencyFormatter.format(product.gia)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: () => cartProvider.decreaseQuantity(item.sanPham.maSP),
+                              onPressed: () => cartProvider.decreaseQuantity(product.maSP),
                             ),
-                            Text(item.soLuong.toString(), style: const TextStyle(fontSize: 16)),
+                            Text(item.quantity.toString(), style: const TextStyle(fontSize: 16)),
                             IconButton(
                               icon: const Icon(Icons.add_circle_outline),
-                              onPressed: () => cartProvider.increaseQuantity(item.sanPham.maSP),
+                              onPressed: () => cartProvider.increaseQuantity(product.maSP),
                             ),
-                            IconButton( // Thêm nút xóa riêng cho từng item
+                            IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => cartProvider.removeItem(item.sanPham.maSP),
+                              onPressed: () => cartProvider.removeItem(product.maSP),
                             ),
                           ],
                         ),
@@ -109,30 +109,51 @@ class CartScreen extends StatelessWidget {
                       'Tổng: ${currencyFormatter.format(cartProvider.totalPrice)}',
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
+
+                    // ⬇️ ⬇️ ⬇️ BẮT ĐẦU SỬA NÚT "THANH TOÁN" ⬇️ ⬇️ ⬇️
                     ElevatedButton(
-                      onPressed: () {
-                        // Sử dụng AuthProvider để kiểm tra trạng thái đăng nhập
+                      // 1. Biến hàm 'onPressed' thành 'async'
+                      onPressed: () async {
+                        // 2. Kiểm tra (như cũ)
                         if (authProvider.isAuthenticated) {
+                          // Nếu ĐÃ đăng nhập, đi thẳng đến Checkout
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const ThanhToanScreen()),
+                            MaterialPageRoute(builder: (context) => const CheckoutScreen()),
                           );
                         } else {
+                          // 3. Nếu CHƯA đăng nhập:
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Vui lòng đăng nhập để thanh toán!')),
                           );
-                          Navigator.push(
+
+                          // 4. CHỜ kết quả từ LoginScreen
+                          final loginResult = await Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const DangNhapScreen()),
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
                           );
+
+                          // 5. Nếu loginResult là 'true' (đăng nhập thành công)
+                          if (loginResult == true) {
+                            // TỰ ĐỘNG chuyển đến trang Checkout
+                            // (thêm 'if (context.mounted)' để đảm bảo an toàn)
+                            if (context.mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const CheckoutScreen()),
+                              );
+                            }
+                          }
+                          // (Nếu loginResult là 'null' - người dùng nhấn Back - thì không làm gì)
                         }
                       },
                       child: const Text('Thanh Toán'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary, // Dùng màu primary từ theme
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                         foregroundColor: Colors.white,
                       ),
                     ),
+                    // ⬆️ ⬆️ ⬆️ KẾT THÚC SỬA ⬆️ ⬆️ ⬆️
                   ],
                 ),
               ),

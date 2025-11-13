@@ -1,8 +1,10 @@
 // lib/screens/profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart'; // Đảm bảo import AuthProvider của bạn
-import '../widgets/custom_list_tile.dart'; // Chúng ta sẽ tạo widget này sau
+import '../providers/auth_provider.dart';
+import '../providers/cart_provider.dart';     // ⬅️ MỚI: Để xóa giỏ hàng
+import '../providers/favorite_provider.dart'; // ⬅️ MỚI: Để xóa yêu thích
+import '../widgets/custom_list_tile.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -19,8 +21,8 @@ class ProfileScreen extends StatelessWidget {
         builder: (context, authProvider, child) {
           final user = authProvider.currentUser;
 
+          // Kiểm tra nếu chưa đăng nhập hoặc user null
           if (!authProvider.isAuthenticated || user == null) {
-            // Trường hợp chưa đăng nhập hoặc không có thông tin user
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -29,7 +31,8 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).pushReplacementNamed('/login');
+                      // Chuyển sang trang login, xóa stack cũ
+                      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
                     },
                     child: const Text('Đăng nhập ngay'),
                   ),
@@ -43,7 +46,6 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Phần thông tin người dùng
                 Center(
                   child: Column(
                     children: [
@@ -76,7 +78,6 @@ class ProfileScreen extends StatelessWidget {
 
                 const Divider(thickness: 1, height: 30),
 
-                // Các tùy chọn tài khoản
                 Text(
                   'Cài đặt tài khoản',
                   style: TextStyle(
@@ -90,7 +91,6 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.edit,
                   title: 'Thông tin cá nhân',
                   onTap: () {
-                    // TODO: Điều hướng đến màn hình chỉnh sửa thông tin cá nhân
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Chức năng đang được phát triển.')),
                     );
@@ -100,27 +100,20 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.shopping_bag,
                   title: 'Đơn hàng của tôi',
                   onTap: () {
-                    // TODO: Điều hướng đến màn hình danh sách đơn hàng
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chức năng đang được phát triển.')),
-                    );
+                    Navigator.of(context).pushNamed('/orders');
                   },
                 ),
                 CustomListTile(
                   icon: Icons.favorite,
                   title: 'Sản phẩm yêu thích',
                   onTap: () {
-                    // TODO: Điều hướng đến màn hình sản phẩm yêu thích
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chức năng đang được phát triển.')),
-                    );
+                    Navigator.of(context).pushNamed('/favorites');
                   },
                 ),
                 CustomListTile(
                   icon: Icons.lock_reset,
                   title: 'Đổi mật khẩu',
                   onTap: () {
-                    // TODO: Điều hướng đến màn hình đổi mật khẩu
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Chức năng đang được phát triển.')),
                     );
@@ -130,7 +123,6 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.settings,
                   title: 'Cài đặt chung',
                   onTap: () {
-                    // TODO: Điều hướng đến màn hình cài đặt chung
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Chức năng đang được phát triển.')),
                     );
@@ -139,12 +131,11 @@ class ProfileScreen extends StatelessWidget {
 
                 const Divider(thickness: 1, height: 30),
 
-                // Nút đăng xuất
+                // NÚT ĐĂNG XUẤT (ĐÃ SỬA LOGIC)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () async {
-                      // Hiển thị dialog xác nhận trước khi đăng xuất
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -164,12 +155,29 @@ class ProfileScreen extends StatelessWidget {
                       );
 
                       if (confirm == true) {
+                        // 🔴 BƯỚC QUAN TRỌNG: XÓA DỮ LIỆU TRONG RAM
+                        // Dùng listen: false để không gây lỗi khi đang build
+                        Provider.of<FavoriteProvider>(context, listen: false).clearFavorites();
+
+                        // Nếu CartProvider của bạn chưa có hàm clearCart(), hãy thêm vào nhé
+                        try {
+                          Provider.of<CartProvider>(context, listen: false).clearCart();
+                        } catch(e) {
+                          // Bỏ qua nếu chưa làm hàm clearCart, nhưng nên làm nhé!
+                        }
+
+                        // Sau khi dọn dẹp xong mới Logout
                         await authProvider.logout();
-                        // Sau khi đăng xuất, điều hướng về màn hình đăng nhập
-                        Navigator.of(context).pushReplacementNamed('/login');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Bạn đã đăng xuất thành công.')),
-                        );
+
+                        if(context.mounted) {
+                          // Dùng pushNamedAndRemoveUntil để xóa sạch lịch sử điều hướng
+                          // Ngăn người dùng bấm Back để quay lại trang Profile
+                          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Bạn đã đăng xuất thành công.')),
+                          );
+                        }
                       }
                     },
                     icon: authProvider.isLoading

@@ -1,4 +1,4 @@
-class SanPham {
+class Product {
   final String maSP;
   final String tenSP;
   final String moTa;
@@ -15,7 +15,8 @@ class SanPham {
   final int stockQuantity;
   bool isFavorite;
 
-  SanPham({
+  // ⬇️ ĐÃ SỬA: Đổi tên constructor
+  Product({
     required this.maSP,
     required this.tenSP,
     required this.moTa,
@@ -34,7 +35,8 @@ class SanPham {
   });
 
   /// Hỗ trợ cả JSON phẳng và JSON lồng dạng { "productEntity": {...} }
-  factory SanPham.fromJson(Map<String, dynamic> json) {
+  // ⬇️ ĐÃ SỬA: Đổi tên factory
+  factory Product.fromJson(Map<String, dynamic> json) {
     final src = (json['productEntity'] is Map<String, dynamic>)
         ? (json['productEntity'] as Map<String, dynamic>)
         : json;
@@ -53,7 +55,8 @@ class SanPham {
       return int.tryParse(v.toString()) ?? 0;
     }
 
-    return SanPham(
+    // ⬇️ ĐÃ SỬA: Gọi constructor 'Product'
+    return Product(
       maSP: _s('productCode'),
       tenSP: _s('productName'),
       moTa: _s('description'),

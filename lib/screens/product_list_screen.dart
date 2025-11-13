@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../models/san_pham.dart';
+import '../models/product.dart'; // Import này đã đúng!
 import '../services/api_service.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -18,7 +18,8 @@ class ProductListScreen extends StatefulWidget {
 }
 
 class _ProductListScreenState extends State<ProductListScreen> {
-  late Future<List<SanPham>> _productsFuture;
+  // ⬇️ ĐÃ SỬA: Dùng class model 'Product'
+  late Future<List<Product>> _productsFuture;
 
   @override
   void initState() {
@@ -27,6 +28,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   void _reload() {
+    // (Hàm ApiService.fetchProductsByCategory đã trả về List<Product>)
     _productsFuture = ApiService.fetchProductsByCategory(widget.categoryCode);
   }
 
@@ -40,7 +42,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return 'http://$host:$port$relativeUrl';
   }
 
-  String priceText(SanPham p) {
+  // ⬇️ ĐÃ SỬA: Dùng class model 'Product'
+  String priceText(Product p) {
     final price = p.gia;
     final discount = p.discountValue ?? 0;
     if (discount > 0 && discount < price) {
@@ -59,7 +62,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
           setState(_reload);
           await _productsFuture;
         },
-        child: FutureBuilder<List<SanPham>>(
+        // ⬇️ ĐÃ SỬA: Dùng class model 'Product'
+        child: FutureBuilder<List<Product>>(
           future: _productsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -68,6 +72,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
             if (snapshot.hasError) {
               return Center(child: Text('Lỗi: ${snapshot.error}'));
             }
+            // (Biến 'products' giờ là List<Product>)
             final products = snapshot.data ?? [];
             if (products.isEmpty) {
               return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
@@ -83,6 +88,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
               itemCount: products.length,
               itemBuilder: (context, index) {
+                // (Biến 'p' giờ là kiểu 'Product')
                 final p = products[index];
                 return Card(
                   clipBehavior: Clip.antiAlias,
