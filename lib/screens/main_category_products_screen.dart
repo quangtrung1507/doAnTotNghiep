@@ -1,13 +1,11 @@
 // lib/screens/main_category_products_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // 🌟 THÊM IMPORT NÀY
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
-import '../providers/cart_provider.dart'; // 🌟 THÊM IMPORT NÀY
-import '../widgets/product_card.dart'; // 🌟 THÊM IMPORT NÀY
-
-// ❌ XÓA IMPORT: 'dart:io' và 'product_detail_screen.dart' (ProductCard tự xử lý)
+import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart'; // 🔴 THÊM IMPORT NÀY
+import '../widgets/product_card.dart';
 
 class MainCategoryProductsScreen extends StatefulWidget {
   final String mainCode;
@@ -52,30 +50,41 @@ class _MainCategoryProductsScreenState extends State<MainCategoryProductsScreen>
             return const Center(child: Text('Chưa có sản phẩm'));
           }
 
-          // 🌟 Lấy CartProvider
+          // 🔴 LẤY PROVIDER
           final cart = Provider.of<CartProvider>(context, listen: false);
+          final auth = Provider.of<AuthProvider>(context, listen: false);
 
           return GridView.builder(
-            // ⬇️ ĐÃ SỬA: Đồng bộ padding giống trang chủ
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             itemCount: products.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              // ⬇️ ĐÃ SỬA: Đồng bộ chiều cao giống trang chủ
               mainAxisExtent: 260,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
-            // ⬇️ ĐÃ SỬA: Dùng ProductCard (widget chung)
             itemBuilder: (_, i) {
               final p = products[i];
               return ProductCard(
                 product: p,
-                onAddToCartPressed: () {
-                  cart.addItem(p);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã thêm "${p.tenSP}" vào giỏ hàng')),
-                  );
+                // 🔴 SỬA LỖI: Chuyển thành hàm 'async' và thêm 'customerCode'
+                onAddToCartPressed: () async {
+                  try {
+                    // Gọi hàm 'addItem' với 2 tham số
+                    await cart.addItem(p, auth.customerCode);
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Đã thêm "${p.tenSP}" vào giỏ hàng')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
                 },
               );
             },
@@ -85,6 +94,3 @@ class _MainCategoryProductsScreenState extends State<MainCategoryProductsScreen>
     );
   }
 }
-
-// ❌ XÓA TOÀN BỘ: class _ProductCard extends StatelessWidget { ... }
-// (Không cần widget riêng tư này nữa)

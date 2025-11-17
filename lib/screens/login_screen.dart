@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/favorite_provider.dart'; // ⬅️ MỚI: Thêm import
-import '../providers/cart_provider.dart';     // ⬅️ MỚI: Thêm import
+import '../providers/favorite_provider.dart'; // Đã import
+import '../providers/cart_provider.dart';     // Đã import
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -97,7 +97,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
-                            // 1. Gọi API Đăng nhập
                             final success = await authProvider.login(
                               _usernameController.text,
                               _passwordController.text,
@@ -106,40 +105,31 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (!mounted) return;
 
                             if (success) {
-
-                              // ---------------------------------------------
-                              // ⬅️ MỚI: TẢI DỮ LIỆU SAU KHI LOGIN
-                              // ---------------------------------------------
-                              // Lấy customerCode vừa đăng nhập
                               final customerCode = authProvider.customerCode;
 
                               if (customerCode != null && customerCode.isNotEmpty) {
                                 print('Login thành công, đang tải dữ liệu cho $customerCode');
                                 try {
-                                  // Báo cho FavoriteProvider tải dữ liệu về RAM
+                                  // Tải Yêu thích
                                   await Provider.of<FavoriteProvider>(context, listen: false)
                                       .fetchFavorites(customerCode);
                                 } catch (e) {
                                   print("Lỗi tải Yêu thích: $e");
                                 }
 
-                                // (Tùy chọn) Báo cho CartProvider tải dữ liệu về RAM
-                                // try {
-                                //   await Provider.of<CartProvider>(context, listen: false)
-                                //       .fetchCart(customerCode); // Giả sử bạn có hàm fetchCart
-                                // } catch (e) {
-                                //   print("Lỗi tải Giỏ hàng (Bỏ qua nếu chưa làm): $e");
-                                // }
+                                // 🔴 ĐÃ SỬA: Bỏ comment để tải giỏ hàng
+                                try {
+                                  await Provider.of<CartProvider>(context, listen: false)
+                                      .fetchCart(customerCode);
+                                } catch (e) {
+                                  print("Lỗi tải Giỏ hàng: $e");
+                                }
                               }
-                              // ---------------------------------------------
-                              // KẾT THÚC PHẦN MỚI
-                              // ---------------------------------------------
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Đăng nhập thành công!')),
                               );
 
-                              // 2. Điều hướng (giữ nguyên logic cũ)
                               if (Navigator.canPop(context)) {
                                 Navigator.of(context).pop(true);
                               } else {

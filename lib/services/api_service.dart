@@ -14,13 +14,24 @@ class ApiService {
   static String? _overrideHost;
   static void setHost(String host) => _overrideHost = host;
 
-  // Tự động chọn localhost (iOS) hoặc 10.0.2.2 (Android Emulator)
   static String get _platformHost => Platform.isAndroid ? '10.0.2.2' : 'localhost';
   static String get _host => _overrideHost ?? _platformHost;
   static const int _port = 8080;
   static String get baseUrl => 'http://$_host:$_port/v1/api';
 
-  // ===== Token =====
+  // =========================================================
+  // 🔴 MỚI: CẤU HÌNH API GIAO HÀNG NHANH (GHN)
+  // =========================================================
+  static const String _ghnBaseUrl = 'https://online-gateway.ghn.vn/shiip/public-api/master-data';
+  static const String _ghnToken = '732e3629-c1d9-11f0-a09b-aec1ea660f5d'; // Token của bạn
+
+  static Map<String, String> get _ghnHeaders => {
+    'Content-Type': 'application/json',
+    'Token': _ghnToken,
+  };
+  // =========================================================
+
+  // ===== Token (Của app bạn) =====
   static String? _token;
   static String? get token => _token;
   static void setToken(String? t) {
@@ -29,7 +40,7 @@ class ApiService {
   }
   static bool get hasToken => (_token ?? '').isNotEmpty;
 
-  // ===== Headers =====
+  // ===== Headers (Của app bạn) =====
   static Map<String, String> headers({bool jsonBody = true, bool withAuth = false}) {
     final h = <String, String>{};
     if (jsonBody) h['Content-Type'] = 'application/json';
@@ -69,15 +80,13 @@ class ApiService {
         headers: headers(),
         body: jsonEncode({'username': username, 'password': password}),
       );
-
-      debugPrint('Login Response: ${res.body}'); // 🟢 Xem log này để biết có accountCode ko
+      if (res.body.isEmpty) throw Exception('Auth response body rỗng');
+      debugPrint('Login Response: ${res.body}');
       final data = jsonDecode(res.body);
       _checkResponseSuccess(data);
-
       final token = (data['accessToken'] ??
           data['token'] ??
           (data is Map && data['data'] is Map ? data['data']['accessToken'] : null)) as String?;
-
       if (token != null && token.isNotEmpty) {
         setToken(token);
       }
@@ -95,6 +104,7 @@ class ApiService {
         headers: headers(),
         body: jsonEncode({'username': username, 'password': password, 'email': email}),
       );
+      if (res.body.isEmpty) return "Lỗi đăng ký (body rỗng)";
       final decoded = jsonDecode(res.body);
       _checkResponseSuccess(decoded);
       return null; // Thành công
@@ -108,6 +118,7 @@ class ApiService {
   // =========================================================
   static Future<List<ProductCategory>> fetchAllCategories() async {
     final res = await http.get(Uri.parse('$baseUrl/categories'), headers: headers());
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
     return _unwrapList(decoded).map((e) => ProductCategory.fromJson(e)).toList();
@@ -115,6 +126,7 @@ class ApiService {
 
   static Future<List<Product>> fetchAllProducts() async {
     final res = await http.get(Uri.parse('$baseUrl/products'), headers: headers());
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
     final decoded = jsonDecode(res.body);
     if (res.statusCode == 200) {
       _checkResponseSuccess(decoded);
@@ -128,6 +140,7 @@ class ApiService {
       Uri.parse('$baseUrl/products/search?q=${Uri.encodeQueryComponent(query)}'),
       headers: headers(),
     );
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
     return _unwrapList(decoded).map((e) => Product.fromJson(e)).toList();
@@ -135,6 +148,7 @@ class ApiService {
 
   static Future<Product> fetchProductByCode(String productCode) async {
     final res = await http.get(Uri.parse('$baseUrl/products/$productCode'), headers: headers());
+    if (res.body.isEmpty) throw Exception('Không tìm thấy sản phẩm'); // 🔴 SỬA LỖI
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
     final data = decoded['data'] ?? decoded['payload'] ?? decoded;
@@ -142,13 +156,14 @@ class ApiService {
   }
 
   // =========================================================
-  // FAVORITES (ĐÃ SỬA LOG VÀ METHOD)
+  // FAVORITES
   // =========================================================
   static Future<List<Product>> fetchMyFavorites(String customerCode) async {
     final res = await http.get(
       Uri.parse('$baseUrl/favorite/$customerCode'),
       headers: headers(withAuth: true),
     );
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
     return _unwrapList(decoded).map((e) => Product.fromJson(e)).toList();
@@ -160,48 +175,39 @@ class ApiService {
       'customerCode': customerCode,
       'productCode': productCode,
     });
-
-    debugPrint('📤 Đang gửi AddFavorite: URL=$url | Body=$body'); // 🟢 SOI LOG NÀY
-
+    debugPrint('📤 Đang gửi AddFavorite: URL=$url | Body=$body');
     final res = await http.post(
       Uri.parse(url),
       headers: headers(withAuth: true),
       body: body,
     );
-
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
     debugPrint('📥 Kết quả AddFavorite: ${res.body}');
-
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
   }
 
 
   static Future<void> removeFavorite(String customerCode, String productCode) async {
-    // 🔴 ĐỔI LẠI THÀNH POST (NHƯ GỐC CỦA BẠN)
-    // Vì có thể Backend của bạn cấu hình xóa bằng POST
-
     final url = '$baseUrl/favorite/$customerCode/$productCode';
     debugPrint('📤 Đang gửi RemoveFavorite (Dùng POST): URL=$url');
-
-    final res = await http.post( // ⬅️ Đã đổi lại thành POST
+    final res = await http.post(
       Uri.parse(url),
       headers: headers(withAuth: true),
-      // Không cần body vì 2 mã đã nằm trên URL
     );
-
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
     debugPrint('📥 Kết quả RemoveFavorite: ${res.body}');
-
     final decoded = jsonDecode(res.body);
-    _checkResponseSuccess(decoded); // Hàm này sẽ ném lỗi nếu statusCode != 200/201
+    _checkResponseSuccess(decoded);
   }
+
   static Future<List<Product>> fetchProductsByCategory(String categoryCode) async {
     final res = await http.get(
       Uri.parse('$baseUrl/products/by-category/$categoryCode'),
       headers: headers(),
     );
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
     final decoded = jsonDecode(res.body);
-
-    // Kiểm tra statusCode 200
     if (decoded is Map && decoded.containsKey('statusCode') && decoded['statusCode'] == 200) {
       final list = _unwrapList(decoded);
       return list.map((e) => Product.fromJson(e)).toList();
@@ -210,23 +216,17 @@ class ApiService {
     }
   }
 
-
-  // ... (Bên trong class ApiService)
-
-  // Hàm lấy sản phẩm theo loại danh mục (Ví dụ: Sách, Văn phòng phẩm...)
   static Future<List<Product>> fetchProductsByCategoryType(String categoryType) async {
     final res = await http.get(
       Uri.parse('$baseUrl/products/by-category-type/$categoryType'),
       headers: headers(),
     );
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
     final decoded = jsonDecode(res.body);
-
     if (res.statusCode == 200) {
-      // Kiểm tra logic status code của backend
       if (decoded is Map && decoded.containsKey('statusCode') && decoded['statusCode'] != 200) {
         throw Exception('Lỗi: ${decoded['message']}');
       }
-
       final list = _unwrapList(decoded);
       return list.map((e) => Product.fromJson(e)).toList();
     }
@@ -238,98 +238,152 @@ class ApiService {
   // CART (GIỎ HÀNG)
   // =========================================================
 
-  /// Tải giỏ hàng của user
-  // static Future<List<CartItem>> fetchCart(String customerCode) async {
-  //   final res = await http.get(
-  //     Uri.parse('$baseUrl/cart/$customerCode'),
-  //     headers: headers(withAuth: true),
-  //   );
-  //   final decoded = jsonDecode(res.body);
-  //   _checkResponseSuccess(decoded);
-  //
-  //   // API trả về CartItem DTO (có thể có product object bên trong)
-  //   final list = _unwrapList(decoded);
-  //   return list.map((e) => CartItem.fromJson(e)).toList();
-  // }
-  //
-  // /// Thêm sản phẩm vào giỏ (hoặc cập nhật)
-  // /// Backend dùng chung 1 DTO CartRequest cho 2 hàm
-  // static Future<void> addCartItem(String customerCode, String productCode, int quantity) async {
-  //   final url = '$baseUrl/cart';
-  //   final body = jsonEncode({
-  //     'customerCode': customerCode,
-  //     'productCode': productCode,
-  //     'quantity': quantity,
-  //   });
-  //
-  //   debugPrint('📤 Đang gửi AddCartItem: $body');
-  //
-  //   final res = await http.post(
-  //     Uri.parse(url),
-  //     headers: headers(withAuth: true),
-  //     body: body,
-  //   );
-  //
-  //   debugPrint('📥 Kết quả AddCartItem: ${res.body}');
-  //   final decoded = jsonDecode(res.body);
-  //   _checkResponseSuccess(decoded);
-  // }
-  //
-  // /// Cập nhật số lượng (theo API controller)
-  // static Future<void> updateCartQuantity(String customerCode, String productCode, int quantity) async {
-  //   final url = '$baseUrl/cart/update-quantity';
-  //   final body = jsonEncode({
-  //     'customerCode': customerCode,
-  //     'productCode': productCode,
-  //     'quantity': quantity,
-  //   });
-  //
-  //   debugPrint('📤 Đang gửi UpdateQuantity: $body');
-  //
-  //   final res = await http.post(
-  //     Uri.parse(url),
-  //     headers: headers(withAuth: true),
-  //     body: body,
-  //   );
-  //
-  //   debugPrint('📥 Kết quả UpdateQuantity: ${res.body}');
-  //   final decoded = jsonDecode(res.body);
-  //   _checkResponseSuccess(decoded);
-  // }
-  //
-  // /// Xóa 1 item khỏi giỏ
-  // static Future<void> removeCartItem(String customerCode, String productCode) async {
-  //   // API của bạn dùng POST để xóa, ta làm theo
-  //   final url = '$baseUrl/cart/$customerCode/$productCode';
-  //   debugPrint('📤 Đang gửi RemoveCartItem (POST): $url');
-  //
-  //   final res = await http.post(
-  //     Uri.parse(url),
-  //     headers: headers(withAuth: true),
-  //   );
-  //
-  //   debugPrint('📥 Kết quả RemoveCartItem: ${res.body}');
-  //   final decoded = jsonDecode(res.body);
-  //   _checkResponseSuccess(decoded);
-  // }
-  //
-  // /// Xóa toàn bộ giỏ hàng (khi thanh toán xong)
-  // static Future<void> clearCartOnServer(String customerCode) async {
-  //   final url = '$baseUrl/cart/delete-all/$customerCode';
-  //   debugPrint('📤 Đang gửi ClearCart (POST): $url');
-  //
-  //   final res = await http.post(
-  //     Uri.parse(url),
-  //     headers: headers(withAuth: true),
-  //   );
-  //   debugPrint('📥 Kết quả ClearCart: ${res.body}');
-  //   final decoded = jsonDecode(res.body);
-  //   _checkResponseSuccess(decoded);
-  // }
+  static Future<List<Map<String, dynamic>>> fetchCart(String customerCode) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/cart/$customerCode'),
+      headers: headers(withAuth: true),
+    );
+    if (res.body.isEmpty) return []; // 🔴 SỬA LỖI: Thêm kiểm tra rỗng
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+    final list = _unwrapList(decoded);
+    return list.cast<Map<String, dynamic>>();
+  }
 
+  static Future<void> addCartItem(String customerCode, String productCode, int quantity) async {
+    final url = '$baseUrl/cart';
+    final body = jsonEncode({
+      'customerCode': customerCode,
+      'productCode': productCode,
+      'quantity': quantity,
+    });
+    debugPrint('📤 Đang gửi AddCartItem: $body');
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers(withAuth: true),
+      body: body,
+    );
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
+    debugPrint('📥 Kết quả AddCartItem: ${res.body}');
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+  }
 
+  static Future<void> updateCartQuantity(String customerCode, String productCode, int quantity) async {
+    final url = '$baseUrl/cart/update-quantity';
+    final body = jsonEncode({
+      'customerCode': customerCode,
+      'productCode': productCode,
+      'quantity': quantity,
+    });
+    debugPrint('📤 Đang gửi UpdateQuantity: $body');
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers(withAuth: true),
+      body: body,
+    );
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
+    debugPrint('📥 Kết quả UpdateQuantity: ${res.body}');
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+  }
 
-  // ===== ORDERS =====
+  static Future<void> removeCartItem(String customerCode, String productCode) async {
+    final url = '$baseUrl/cart/$customerCode/$productCode';
+    debugPrint('📤 Đang gửi RemoveCartItem (POST): $url');
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers(withAuth: true),
+    );
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
+    debugPrint('📥 Kết quả RemoveCartItem: ${res.body}');
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+  }
+
+  static Future<void> clearCartOnServer(String customerCode) async {
+    final url = '$baseUrl/cart/delete-all/$customerCode';
+    debugPrint('📤 Đang gửi ClearCart (POST): $url');
+    final res = await http.post(
+      Uri.parse(url),
+      headers: headers(withAuth: true),
+    );
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
+    debugPrint('📥 Kết quả ClearCart: ${res.body}');
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+  }
+
+  // =========================================================
+  // 🔴 MỚI: ADDRESS (GHN) - API LẤY TỈNH/HUYỆN/XÃ
+  // =========================================================
+
+  /// Lấy danh sách Tỉnh/Thành phố
+  static Future<List<Map<String, dynamic>>> fetchProvinces() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_ghnBaseUrl/province'),
+        headers: _ghnHeaders,
+      );
+      if (res.body.isEmpty) return []; // 🔴 SỬA LỖI
+      final decoded = jsonDecode(res.body);
+      if (decoded['code'] == 200) {
+        // Trả về danh sách Tỉnh/Thành
+        return (decoded['data'] as List).cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(decoded['message'] ?? 'Lỗi tải Tỉnh/Thành');
+      }
+    } catch (e) {
+      print('Lỗi fetchProvinces: $e');
+      throw Exception('Không thể tải danh sách Tỉnh/Thành');
+    }
+  }
+
+  /// Lấy danh sách Quận/Huyện theo Tỉnh
+  static Future<List<Map<String, dynamic>>> fetchDistricts(int provinceId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_ghnBaseUrl/district'),
+        headers: _ghnHeaders,
+        body: jsonEncode({'province_id': provinceId}),
+      );
+      if (res.body.isEmpty) return []; // 🔴 SỬA LỖI
+      final decoded = jsonDecode(res.body);
+      if (decoded['code'] == 200) {
+        return (decoded['data'] as List).cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(decoded['message'] ?? 'Lỗi tải Quận/Huyện');
+      }
+    } catch (e) {
+      print('Lỗi fetchDistricts: $e');
+      throw Exception('Không thể tải danh sách Quận/Huyện');
+    }
+  }
+
+  /// Lấy danh sách Phường/Xã theo Quận
+  static Future<List<Map<String, dynamic>>> fetchWards(int districtId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_ghnBaseUrl/ward'),
+        headers: _ghnHeaders,
+        body: jsonEncode({'district_id': districtId}),
+      );
+      if (res.body.isEmpty) return []; // 🔴 SỬA LỖI
+      final decoded = jsonDecode(res.body);
+      if (decoded['code'] == 200) {
+        return (decoded['data'] as List).cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(decoded['message'] ?? 'Lỗi tải Phường/Xã');
+      }
+    } catch (e) {
+      print('Lỗi fetchWards: $e');
+      throw Exception('Không thể tải danh sách Phường/Xã');
+    }
+  }
+
+  // =========================================================
+  // ORDERS (Giữ nguyên)
+  // =========================================================
   static Future<void> createOrder({
     required String customerCode,
     required List<CartItem> cartItems,
@@ -355,46 +409,35 @@ class ApiService {
     });
     final res = await http.post(
       Uri.parse('$baseUrl/orders'),
-      headers: headers(withAuth: true), // ⬅️ Sửa
+      headers: headers(withAuth: true),
       body: body,
     );
-
+    if (res.body.isEmpty) return; // 🔴 SỬA LỖI
     final decoded = jsonDecode(res.body);
-    if (decoded is Map && decoded.containsKey('statusCode') && (decoded['statusCode'] == 200 || decoded['statusCode'] == 201)) {
-      return;
-    } else {
-      final message = decoded['message'] ?? 'Lỗi không xác định';
-      throw Exception('Lỗi tạo đơn hàng: $message');
-    }
+    _checkResponseSuccess(decoded);
   }
 
   static Future<List<Order>> fetchMyOrders(String customerCode) async {
     final res = await http.get(
       Uri.parse('$baseUrl/orders/customer/$customerCode'),
-      headers: headers(withAuth: true), // ⬅️ Sửa
+      headers: headers(withAuth: true),
     );
+    if (res.body.isEmpty) return []; // 🔴 ĐÃ SỬA
     final decoded = jsonDecode(res.body);
-    if (decoded is Map && decoded.containsKey('statusCode') && decoded['statusCode'] == 200) {
-      final List<dynamic> list = _unwrapList(decoded);
-      return list.map((e) => Order.fromJson(e)).toList();
-    } else {
-      final message = decoded['message'] ?? 'Lỗi không xác định';
-      throw Exception('Lỗi tải đơn hàng: $message');
-    }
+    _checkResponseSuccess(decoded);
+    final List<dynamic> list = _unwrapList(decoded);
+    return list.map((e) => Order.fromJson(e)).toList();
   }
 
   static Future<Order> fetchOrderDetails(String orderCode) async {
     final res = await http.get(
       Uri.parse('$baseUrl/orders/$orderCode'),
-      headers: headers(withAuth: true), // ⬅️ Sửa
+      headers: headers(withAuth: true),
     );
+    if (res.body.isEmpty) throw Exception('Không tìm thấy đơn hàng'); // 🔴 SỬA LỖI
     final decoded = jsonDecode(res.body);
-    if (decoded is Map && decoded.containsKey('statusCode') && decoded['statusCode'] == 200) {
-      final orderData = decoded['data'] ?? decoded['payload'] ?? decoded;
-      return Order.fromJson(orderData);
-    } else {
-      final message = decoded['message'] ?? 'Lỗi không xác định';
-      throw Exception('Lỗi tải chi tiết đơn hàng: $message');
-    }
+    _checkResponseSuccess(decoded);
+    final orderData = decoded['data'] ?? decoded['payload'] ?? decoded;
+    return Order.fromJson(orderData);
   }
 }

@@ -1,3 +1,4 @@
+// lib/screens/cart_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +16,10 @@ class CartScreen extends StatelessWidget {
 
     return Consumer2<CartProvider, AuthProvider>(
       builder: (context, cartProvider, authProvider, child) {
+
+        // 🔴 LẤY MÃ KHÁCH HÀNG
+        final customerCode = authProvider.customerCode;
+
         return Scaffold(
           appBar: AppBar(
             title: const Text('Giỏ Hàng'),
@@ -24,7 +29,6 @@ class CartScreen extends StatelessWidget {
               ? const Center(child: CircularProgressIndicator())
               : cartProvider.items.isEmpty
               ? Center(
-            // (Code UI khi giỏ hàng rỗng... giữ nguyên)
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -37,7 +41,9 @@ class CartScreen extends StatelessWidget {
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () {
-                    DefaultTabController.of(context).animateTo(0);
+                    try {
+                      DefaultTabController.of(context).animateTo(0);
+                    } catch(e) {}
                   },
                   child: const Text('Tiếp tục mua sắm'),
                 ),
@@ -48,7 +54,6 @@ class CartScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: ListView.builder(
-                  // (Code ListView... giữ nguyên)
                   itemCount: cartProvider.items.length,
                   itemBuilder: (context, index) {
                     final item = cartProvider.items[index];
@@ -75,18 +80,27 @@ class CartScreen extends StatelessWidget {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // 🔴 SỬA LỖI: Thêm customerCode
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: () => cartProvider.decreaseQuantity(product.maSP),
+                              onPressed: () {
+                                cartProvider.decreaseQuantity(product.maSP, customerCode);
+                              },
                             ),
                             Text(item.quantity.toString(), style: const TextStyle(fontSize: 16)),
+                            // 🔴 SỬA LỖI: Thêm customerCode
                             IconButton(
                               icon: const Icon(Icons.add_circle_outline),
-                              onPressed: () => cartProvider.increaseQuantity(product.maSP),
+                              onPressed: () {
+                                cartProvider.increaseQuantity(product.maSP, customerCode);
+                              },
                             ),
+                            // 🔴 SỬA LỖI: Thêm customerCode
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => cartProvider.removeItem(product.maSP),
+                              onPressed: () {
+                                cartProvider.removeItem(product.maSP, customerCode);
+                              },
                             ),
                           ],
                         ),
@@ -97,6 +111,7 @@ class CartScreen extends StatelessWidget {
               ),
               // Phần tổng kết và thanh toán
               Container(
+                // ... (code giao diện phần tổng tiền giữ nguyên) ...
                 padding: const EdgeInsets.all(16),
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -110,33 +125,23 @@ class CartScreen extends StatelessWidget {
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
 
-                    // ⬇️ ⬇️ ⬇️ BẮT ĐẦU SỬA NÚT "THANH TOÁN" ⬇️ ⬇️ ⬇️
                     ElevatedButton(
-                      // 1. Biến hàm 'onPressed' thành 'async'
+                      // (Logic nút thanh toán của bạn đã tốt, giữ nguyên)
                       onPressed: () async {
-                        // 2. Kiểm tra (như cũ)
                         if (authProvider.isAuthenticated) {
-                          // Nếu ĐÃ đăng nhập, đi thẳng đến Checkout
                           Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const CheckoutScreen()),
                           );
                         } else {
-                          // 3. Nếu CHƯA đăng nhập:
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Vui lòng đăng nhập để thanh toán!')),
                           );
-
-                          // 4. CHỜ kết quả từ LoginScreen
                           final loginResult = await Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const LoginScreen()),
                           );
-
-                          // 5. Nếu loginResult là 'true' (đăng nhập thành công)
                           if (loginResult == true) {
-                            // TỰ ĐỘNG chuyển đến trang Checkout
-                            // (thêm 'if (context.mounted)' để đảm bảo an toàn)
                             if (context.mounted) {
                               Navigator.push(
                                 context,
@@ -144,7 +149,6 @@ class CartScreen extends StatelessWidget {
                               );
                             }
                           }
-                          // (Nếu loginResult là 'null' - người dùng nhấn Back - thì không làm gì)
                         }
                       },
                       child: const Text('Thanh Toán'),
@@ -153,7 +157,6 @@ class CartScreen extends StatelessWidget {
                         foregroundColor: Colors.white,
                       ),
                     ),
-                    // ⬆️ ⬆️ ⬆️ KẾT THÚC SỬA ⬆️ ⬆️ ⬆️
                   ],
                 ),
               ),

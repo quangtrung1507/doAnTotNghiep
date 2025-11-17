@@ -44,22 +44,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
-  // 🔴 ĐÃ SỬA: Hàm kiểm tra chặt chẽ hơn
+  // Hàm kiểm tra đăng nhập (Đã sửa lỗi gõ nhầm)
   Future<bool> _checkLogin(BuildContext context) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    // Điều kiện: Phải có Token (isAuthenticated) VÀ User không được null
-    // Điều này giúp đồng bộ với màn hình Profile của bạn
     bool isReallyLoggedIn = authProvider.isAuthenticated && authProvider.currentUser != null;
 
     if (isReallyLoggedIn) {
-      return true; // Cho phép đi tiếp
+      return true;
     }
 
-    // Nếu chưa đủ điều kiện -> Hiện Popup
     final bool? shouldLogin = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        // 🔴 ĐÃ SỬA LỖI GÕ NHẦM (Xóa chữ R thừa)
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
@@ -86,7 +83,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (shouldLogin == true && context.mounted) {
       Navigator.of(context).pushNamed('/login');
     }
-    return false; // Chặn lại, không cho thêm vào giỏ
+    return false;
   }
 
   @override
@@ -170,24 +167,30 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ],
         ),
       ),
+      // Nút thêm giỏ hàng (Đã sửa để khớp với Provider mới)
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16.0),
         child: ElevatedButton.icon(
-          // 🔴 ÁP DỤNG LOGIC CHẶN Ở ĐÂY
           onPressed: () async {
-            // Gọi hàm check login, nếu trả về false (chưa login) thì return luôn
             final isLoggedIn = await _checkLogin(context);
             if (!isLoggedIn) return;
 
-            // Code thêm vào giỏ chỉ chạy khi đã qua được bước trên
             if (context.mounted) {
               try {
-                Provider.of<CartProvider>(context, listen: false).addItem(_product!);
+                // Lấy AuthProvider
+                final auth = Provider.of<AuthProvider>(context, listen: false);
+
+                // Gọi hàm 'addItem' VỚI customerCode
+                await Provider.of<CartProvider>(context, listen: false)
+                    .addItem(_product!, auth.customerCode); // ⬅️ Phải là 'await'
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Đã thêm "${_product!.tenSP}" vào giỏ hàng!')),
                 );
               } catch(e) {
-                // Xử lý lỗi nếu có
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+                );
               }
             }
           },

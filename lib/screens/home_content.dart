@@ -8,12 +8,10 @@ import '../models/product.dart';
 import '../models/product_category.dart';
 import '../services/api_service.dart';
 import '../providers/cart_provider.dart';
-import '../providers/auth_provider.dart'; // ⬇️ ⬇️ THÊM IMPORT NÀY ⬇️ ⬇️
+import '../providers/auth_provider.dart'; // Import AuthProvider
 import '../widgets/product_card.dart';
 
 import 'main_category_products_screen.dart';
-
-
 
 class HomeContent extends StatefulWidget {
   const HomeContent({Key? key}) : super(key: key);
@@ -23,13 +21,8 @@ class HomeContent extends StatefulWidget {
 }
 
 class _HomeContentState extends State<HomeContent> {
-  // ... (Code từ dòng 25 đến 304 giữ nguyên) ...
-  // (Toàn bộ phần _loadProducts, _buildHeader, _buildCategoryGrid... không thay đổi)
-
   // ----- DATA -----
   late Future<List<Product>> _futureProducts;
-
-  // 🌟 THÊM: Future cho categories (để tạo Grid động)
   late Future<List<ProductCategory>> _futureCategories;
 
   // ----- SEARCH -----
@@ -38,12 +31,10 @@ class _HomeContentState extends State<HomeContent> {
   @override
   void initState() {
     super.initState();
-    // Tải sản phẩm "Tất cả" VÀ tải danh mục cho Grid
     _futureProducts = _loadProducts();
     _futureCategories = ApiService.fetchAllCategories();
   }
 
-  // ⬇️ ĐÃ SỬA: Hàm này giờ CHỈ tải TẤT CẢ sản phẩm
   Future<List<Product>> _loadProducts() async {
     try {
       return await ApiService.fetchAllProducts();
@@ -64,7 +55,6 @@ class _HomeContentState extends State<HomeContent> {
   Future<void> _doSearch(String q) async {
     final query = q.trim();
     setState(() {
-      // ⬇️ SỬA: Tìm kiếm hoặc tải lại TẤT CẢ (không filter theo _currentCode)
       _futureProducts = query.isEmpty
           ? _loadProducts()
           : ApiService.searchProducts(query);
@@ -86,14 +76,10 @@ class _HomeContentState extends State<HomeContent> {
           SliverToBoxAdapter(child: _buildHeader()),
           SliverToBoxAdapter(child: _buildBannerSlider()),
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-          // ⬇️ HÀM NÀY GIỜ SẼ DÙNG FutureBuilder
           SliverToBoxAdapter(child: _buildCategoryGrid(context)),
-
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
             sliver: SliverToBoxAdapter(
-              // ⬇️ ĐÃ SỬA: Tiêu đề cố định
               child: _buildSectionTitle('Sản phẩm nổi bật'),
             ),
           ),
@@ -104,7 +90,6 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // ⬇️ ĐÃ SỬA: Tiêu đề cố định
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -112,7 +97,6 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // (Hàm _buildHeader giữ nguyên)
   Widget _buildHeader() {
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -162,7 +146,6 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // (Hàm _buildBannerSlider giữ nguyên)
   Widget _buildBannerSlider() {
     final items = [
       'lib/assets/5.jpg',
@@ -201,11 +184,7 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // (Hàm _buildCategoryGrid và _buildGridItem giữ nguyên)
   Widget _buildCategoryGrid(BuildContext context) {
-    // ...
-    // (Toàn bộ code từ dòng 223 đến 304 giữ nguyên)
-    // ...
     final Map<String, String> labelMap = {
       'book': 'Sách',
       'modelKit': 'Mô hình',
@@ -219,8 +198,6 @@ class _HomeContentState extends State<HomeContent> {
       'compaEke': 'Compa',
       'pencilEraser': 'Bút chì',
     };
-
-    // Map tĩnh cho Icon
     final Map<String, IconData> iconMap = {
       'book': Icons.menu_book,
       'modelKit': Icons.build_circle_outlined,
@@ -234,8 +211,6 @@ class _HomeContentState extends State<HomeContent> {
       'compaEke': Icons.square_foot_outlined,
       'pencilEraser': Icons.edit_note_outlined,
     };
-
-    // Map tĩnh cho Màu
     final Map<String, Color> colorMap = {
       'book': Colors.green.shade400,
       'modelKit': Colors.orange.shade400,
@@ -250,7 +225,6 @@ class _HomeContentState extends State<HomeContent> {
       'pencilEraser': Colors.blueGrey.shade400,
     };
 
-
     return FutureBuilder<List<ProductCategory>>(
       future: _futureCategories,
       builder: (context, snapshot) {
@@ -259,8 +233,6 @@ class _HomeContentState extends State<HomeContent> {
         }
 
         final allCategories = snapshot.data ?? [];
-
-        // 1. Lọc ra các 'mainCode' (category_type) duy nhất
         final Set<String> uniqueTypes = {};
         for (final cat in allCategories) {
           if (cat.mainCode != null) {
@@ -269,7 +241,6 @@ class _HomeContentState extends State<HomeContent> {
         }
         final List<String> categoryCodes = uniqueTypes.toList();
 
-        // 2. Xây dựng GridView
         return GridView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           shrinkWrap: true,
@@ -283,19 +254,18 @@ class _HomeContentState extends State<HomeContent> {
           ),
           itemBuilder: (context, index) {
             final code = categoryCodes[index];
-            final label = labelMap[code] ?? code; // Lấy tên, hoặc dùng code
-            final icon = iconMap[code] ?? Icons.category; // Lấy icon, hoặc mặc định
-            final color = colorMap[code] ?? Colors.grey; // Lấy màu, hoặc mặc định
+            final label = labelMap[code] ?? code;
+            final icon = iconMap[code] ?? Icons.category;
+            final color = colorMap[code] ?? Colors.grey;
 
             return _buildGridItem(
               label,
               icon,
               color,
                   () {
-                // 3. TẤT CẢ CÁC NÚT ĐỀU LÀM VIỆC NÀY:
                 Navigator.push(context, MaterialPageRoute(
                   builder: (_) => MainCategoryProductsScreen(
-                    mainCode: code, // Truyền 'book', 'pen', 'modelKit'...
+                    mainCode: code,
                     title: label,
                   ),
                 ));
@@ -340,14 +310,11 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-
   // (Hàm _buildProducts)
   Widget _buildProducts() {
-    // ⬇️ ⬇️ ⬇️ BẮT ĐẦU SỬA ⬇️ ⬇️ ⬇️
-    // 1. Lấy cả 2 provider
+    // 🔴 ĐÃ SỬA: Lấy cả CartProvider và AuthProvider
     final cart = Provider.of<CartProvider>(context, listen: false);
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    // ⬆️ ⬆️ ⬆️ KẾT THÚC SỬA ⬆️ ⬆️ ⬆️
 
     return FutureBuilder<List<Product>>(
       future: _futureProducts,
@@ -388,24 +355,27 @@ class _HomeContentState extends State<HomeContent> {
             final p = items[i];
             return ProductCard(
               product: p,
-              // ⬇️ ⬇️ ⬇️ SỬA LOGIC ONADD_TO_CART ⬇️ ⬇️ ⬇️
-              onAddToCartPressed: () {
-                // 2. Kiểm tra đăng nhập
-                if (auth.isAuthenticated) {
-                  // 3a. Đã đăng nhập: Thêm vào giỏ
-                  cart.addItem(p);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã thêm "${p.tenSP}" vào giỏ hàng')),
-                  );
-                } else {
-                  // 3b. Chưa đăng nhập: Chuyển đến trang Login
-                  Navigator.of(context).pushNamed('/login');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vui lòng đăng nhập để thêm vào giỏ hàng!')),
-                  );
+              // 🔴 ĐÃ SỬA: Chuyển onAddToCartPressed thành hàm async
+              onAddToCartPressed: () async {
+                // Ghi chú: Logic _checkLogin nằm BÊN TRONG ProductCard rồi
+
+                try {
+                  // 🔴 ĐÃ SỬA: Gọi addItem với 2 tham số (product và customerCode)
+                  await cart.addItem(p, auth.customerCode);
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đã thêm "${p.tenSP}" vào giỏ hàng')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+                    );
+                  }
                 }
               },
-              // ⬆️ ⬆️ ⬆️ KẾT THÚC SỬA ⬆️ ⬆️ ⬆️
             );
           },
         );
@@ -413,4 +383,3 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 }
-

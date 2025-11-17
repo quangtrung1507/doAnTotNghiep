@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/product_detail_screen.dart'; // 👈 QUAN TRỌNG: Phải import file này
+import 'screens/product_detail_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/checkout_screen.dart';
 import 'screens/favorite_screen.dart';
@@ -31,11 +31,12 @@ class BookStoreApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        // 🔴 QUAN TRỌNG: Phải dùng 'lazy: false' cho AuthProvider
+        // Để nó được tạo ngay lập tức và AppInitializer có thể gọi
+        ChangeNotifierProvider(create: (_) => AuthProvider(), lazy: false),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
 
-        // ProxyProvider cho Favorite (như đã sửa trước đó)
         ChangeNotifierProxyProvider<AuthProvider, FavoriteProvider>(
           create: (context) => FavoriteProvider(),
           update: (context, auth, previousProvider) {
@@ -49,6 +50,7 @@ class BookStoreApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         title: 'Nhà Sách Flutter',
         theme: ThemeData(
+          // (ThemeData của bạn giữ nguyên)
           colorScheme: ColorScheme.light(
             primary: Colors.brown.shade300,
             secondary: Colors.amber.shade300,
@@ -66,11 +68,10 @@ class BookStoreApp extends StatelessWidget {
           ),
         ),
 
-        // Màn hình khởi động
         home: const AppInitializer(),
 
-        // Định nghĩa các đường dẫn tĩnh
         routes: {
+          // (routes của bạn giữ nguyên)
           '/home': (context) => const MainScreen(),
           '/login': (context) => const LoginScreen(),
           '/register': (context) => const RegisterScreen(),
@@ -81,14 +82,10 @@ class BookStoreApp extends StatelessWidget {
           '/orders': (context) => const OrderTrackingScreen(),
         },
 
-        // 🔴 QUAN TRỌNG: Xử lý đường dẫn động (có tham số)
         onGenerateRoute: (settings) {
-          // Khi gọi '/product-detail'
+          // (onGenerateRoute của bạn giữ nguyên)
           if (settings.name == '/product-detail') {
-            // Lấy tham số (Mã SP) được gửi kèm
             final args = settings.arguments;
-
-            // Kiểm tra nếu args là String thì mới mở trang
             if (args is String) {
               return MaterialPageRoute(
                 builder: (context) {
@@ -96,21 +93,22 @@ class BookStoreApp extends StatelessWidget {
                 },
               );
             }
-            // Nếu không có mã SP -> Báo lỗi
             return MaterialPageRoute(
               builder: (context) => const Scaffold(
                 body: Center(child: Text('Lỗi: Không có mã sản phẩm')),
               ),
             );
           }
-          return null; // Các route khác để mặc định
+          return null;
         },
       ),
     );
   }
 }
 
-// Widget Khởi tạo (Giữ nguyên như cũ)
+// -----------------------------------------------------
+// 🔴 WIDGET KHỞI TẠO (ĐÃ SỬA HOÀN CHỈNH) 🔴
+// -----------------------------------------------------
 class AppInitializer extends StatefulWidget {
   const AppInitializer({super.key});
 
@@ -119,21 +117,67 @@ class AppInitializer extends StatefulWidget {
 }
 
 class _AppInitializerState extends State<AppInitializer> {
+  // Biến để theo dõi quá trình tải
+  late Future<void> _initializationFuture;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AuthProvider>(context, listen: false).loadAuthToken();
-    });
+    // Gọi hàm tải dữ liệu khi widget vừa được tạo
+    _initializationFuture = _initializeApp();
+  }
+
+  /// Hàm tải dữ liệu chính khi khởi động App
+  Future<void> _initializeApp() async {
+    // Dùng context.read an toàn hơn trong initState/async
+    final authProvider = context.read<AuthProvider>();
+
+    try {
+      // Bước 1: Tải Token và User từ bộ nhớ máy
+      await authProvider.loadAuthToken();
+
+      // Kiểm tra nếu người dùng đã đăng nhập từ trước
+      if (mounted && authProvider.isAuthenticated) {
+        final customerCode = authProvider.customerCode;
+        if (customerCode != null && customerCode.isNotEmpty) {
+
+          print('Đã đăng nhập, đang tải dữ liệu cho $customerCode...');
+
+          // Bước 2: Tải đồng thời Giỏ hàng và Yêu thích
+          // (Chạy song song 2 API để tiết kiệm thời gian)
+          await Future.wait([
+            // Tải Yêu thích
+            context.read<FavoriteProvider>().fetchFavorites(customerCode),
+
+            // Tải Giỏ hàng
+            context.read<CartProvider>().fetchCart(customerCode),
+          ]);
+        }
+      }
+    } catch (e) {
+      // Nếu có lỗi (ví dụ: mất mạng), cứ in ra và tiếp tục vào app
+      print("Lỗi khi khởi tạo App: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, auth, _) {
-        if (auth.isLoading && !auth.isAuthenticated) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // Dùng FutureBuilder để hiển thị màn hình Loading
+    return FutureBuilder(
+      future: _initializationFuture,
+      builder: (context, snapshot) {
+        // KHI ĐANG TẢI (Auth, Cart, Fav): Hiển thị vòng xoay
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
+
+        // KHI TẢI XONG: Vào màn hình chính
+        // (Lúc này MainScreen sẽ tự động hiển thị đúng
+        // dựa trên dữ liệu đã được tải vào các Provider)
         return const MainScreen();
       },
     );

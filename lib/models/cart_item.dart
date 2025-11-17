@@ -1,16 +1,29 @@
 // lib/models/cart_item.dart
-import 'product.dart'; // Import model Product tiếng Anh
+import 'product.dart';
 
-// ⬇️ ĐÃ SỬA: Đổi tên class
 class CartItem {
-  // ⬇️ ĐÃ SỬA: Đổi tên thuộc tính
   final Product product;
-  // ⬇️ ĐÃ SỬA: Đổi tên thuộc tính
   int quantity;
 
-  // ⬇️ ĐÃ SỬA: Cập nhật constructor
   CartItem({
     required this.product,
     required this.quantity,
   });
+
+  factory CartItem.fromJson(Map<String, dynamic> json) {
+    if (json['product'] == null || json['product'] is! Map) {
+      throw Exception("Lỗi đọc giỏ hàng: Dữ liệu 'product' bị thiếu.");
+    }
+
+    final productData = Product.fromJson(json['product'] as Map<String, dynamic>);
+    final qty = (json['quantity'] as int?) ?? 1;
+
+    // 🔴 THÊM LOG ĐỂ KIỂM TRA
+    print('🛒 [CartItem] Đã parse: ${productData.tenSP} (SL: $qty)');
+
+    return CartItem(
+      product: productData,
+      quantity: qty,
+    );
+  }
 }

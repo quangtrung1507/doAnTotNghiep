@@ -27,7 +27,9 @@ class FavoriteProvider with ChangeNotifier {
     return _favoriteProducts.any((product) => product.maSP == productId);
   }
 
-  // Tải danh sách yêu thích từ server
+  // -----------------------------------------------------------------
+  // 🔴 HÀM ĐÃ SỬA: Tải danh sách yêu thích (Và lấy giá đầy đủ)
+  // -----------------------------------------------------------------
   Future<void> fetchFavorites(String customerCode) async {
     if (customerCode.isEmpty) {
       print('⚠️ FetchFavorites bị hủy: CustomerCode rỗng');
@@ -37,23 +39,52 @@ class FavoriteProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final serverFavorites = await ApiService.fetchMyFavorites(customerCode);
+      // BƯỚC 1: Lấy danh sách TẤT CẢ sản phẩm (để có giá)
+      // (Chúng ta giả định ApiService.fetchAllProducts() trả về sản phẩm CÓ giá)
+      final allProductsList = await ApiService.fetchAllProducts();
 
-      // Merge logic: Ưu tiên server, nhưng giữ lại cái mới add ở local nếu có
-      // (Ở đây tôi làm đơn giản là lấy server đè lên local để đồng bộ chuẩn)
+      // Chuyển sang Map để tra cứu nhanh bằng mã SP
+      final Map<String, Product> allProductsMap = {
+        for (var product in allProductsList) product.maSP: product
+      };
+
+      // BƯỚC 2: Lấy danh sách ID YÊU THÍCH (có thể bị thiếu giá)
+      final serverFavoritesSummaries = await ApiService.fetchMyFavorites(customerCode);
+
+      // BƯỚC 3: Gộp 2 danh sách lại
+      final List<Product> fullFavoriteProducts = [];
+
+      for (var favSummary in serverFavoritesSummaries) {
+        // Tìm sản phẩm đầy đủ (có giá) trong Map
+        final fullProduct = allProductsMap[favSummary.maSP];
+
+        if (fullProduct != null) {
+          // Nếu tìm thấy, thêm sản phẩm CÓ GIÁ vào danh sách
+          fullFavoriteProducts.add(fullProduct);
+        } else {
+          // Nếu không tìm thấy (hiếm khi xảy ra), dùng tạm data tóm tắt (sẽ bị 0 đ)
+          // Có thể sản phẩm này đã bị xóa khỏi shop
+          print('⚠️ Không tìm thấy chi tiết của sản phẩm yêu thích: ${favSummary.maSP}');
+          fullFavoriteProducts.add(favSummary);
+        }
+      }
+
+      // BƯỚC 4: Cập nhật UI với danh sách đã có giá
       _favoriteProducts.clear();
-      _favoriteProducts.addAll(serverFavorites);
+      _favoriteProducts.addAll(fullFavoriteProducts);
 
-      print('✅ Đã tải ${serverFavorites.length} sản phẩm yêu thích.');
+      print('✅ Đã tải ${fullFavoriteProducts.length} sản phẩm yêu thích (có giá).');
     } catch (e) {
-      print('❌ Lỗi fetchFavorites: $e');
+      print('❌ Lỗi fetchFavorites (đã sửa): $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // Hàm chính: Thêm/Xóa yêu thích
+  // -----------------------------------------------------------------
+  // HÀM TOGGLE (Giữ nguyên, không thay đổi)
+  // -----------------------------------------------------------------
   Future<void> toggleFavorite(Product product, String? customerCode) async {
     final String maSP = product.maSP;
     final bool isCurrentlyFavorite = isFavorite(maSP);
@@ -69,7 +100,6 @@ class FavoriteProvider with ChangeNotifier {
     // 2. Kiểm tra điều kiện để gọi API
     final token = ApiService.token;
 
-    // Debug Log quan trọng
     print('--- TOGGLE FAVORITE ---');
     print('Product: $maSP');
     print('CustomerCode (từ Auth): $customerCode');
@@ -90,10 +120,8 @@ class FavoriteProvider with ChangeNotifier {
         print('🔄 Đang hoàn tác UI...');
 
         if (isCurrentlyFavorite) {
-          // Nãy xóa đi rồi, giờ thêm lại
           _favoriteProducts.add(product);
         } else {
-          // Nãy thêm vào rồi, giờ xóa đi
           _favoriteProducts.removeWhere((p) => p.maSP == maSP);
         }
         notifyListeners();
