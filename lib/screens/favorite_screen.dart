@@ -13,9 +13,9 @@ class FavoriteScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lấy provider (listen: false)
+
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    // 🔴 LẤY AUTH PROVIDER ĐỂ LẤY MÃ KHÁCH HÀNG
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     return Scaffold(
@@ -50,10 +50,10 @@ class FavoriteScreen extends StatelessWidget {
               final product = favoriteProducts[index];
               return ProductCard(
                 product: product,
-                // 🔴 SỬA LỖI: Chuyển thành hàm 'async' và thêm 'customerCode'
+
                 onAddToCartPressed: () async {
                   try {
-                    // Gọi hàm 'addItem' với 2 tham số
+
                     await cartProvider.addItem(product, authProvider.customerCode);
 
                     if (context.mounted) {

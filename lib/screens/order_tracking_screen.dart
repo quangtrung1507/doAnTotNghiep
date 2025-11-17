@@ -1,11 +1,14 @@
 // lib/screens/order_tracking_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // 🔴 THÊM IMPORT ĐỂ FORMAT NGÀY
+import 'package:intl/intl.dart';
+
 import '../providers/auth_provider.dart';
-import '../services/api_service.dart'; // 🔴 SỬA: Gọi API Service trực tiếp
-import '../models/order_model.dart';   // 🔴 SỬA: Dùng Model mới
+import '../services/orders_api.dart';      // lấy LIST từ OrdersApi (real)
+import '../services/order_service.dart';   // fallback mock nếu rỗng/lỗi
+import '../models/order_model.dart';
 import '../utils/app_colors.dart';
+import 'order_detail_screen.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   const OrderTrackingScreen({super.key});
@@ -15,65 +18,128 @@ class OrderTrackingScreen extends StatefulWidget {
 }
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
-  // 🔴 SỬA: Dùng FutureBuilder để quản lý state
   late Future<List<Order>> _futureOrders;
+
+  // Bộ lọc trạng thái (client)
+  static const _statusFilters = <String, String>{
+    'ALL': 'Tất cả',
+    'UNPAID': 'Chưa thanh toán',
+    'PENDING_SHIPMENT': 'Chờ vận chuyển',
+    'IN_TRANSIT': 'Đã vận chuyển',
+    'DELIVERED': 'Đã giao',
+    'NEED_REVIEW': 'Cần đánh giá',
+    'RETURNED': 'Trả hàng',
+    'CANCELLED': 'Đã hủy',
+    'PENDING': 'Chờ xác nhận',
+  };
+  String _selectedStatus = 'ALL';
+
+  final _currency = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
   @override
   void initState() {
     super.initState();
-    // Gọi hàm tải đơn hàng ngay khi mở
     _futureOrders = _fetchOrders();
   }
 
-  // 🔴 SỬA: Hàm này giờ sẽ trả về Future<List<Order>>
   Future<List<Order>> _fetchOrders() async {
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.customerCode != null) {
-        // Gọi thẳng API Service
-        print("Đang tải đơn hàng cho: ${authProvider.customerCode}");
-        final orders = await ApiService.fetchMyOrders(authProvider.customerCode!);
-        print("Tải thành công ${orders.length} đơn hàng.");
-        return orders;
-      } else {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final code = auth.customerCode;
+      final token = auth.authToken;
+
+      if (code == null || code.isEmpty) {
         throw Exception('Vui lòng đăng nhập để xem đơn hàng.');
       }
+
+      debugPrint('[OrderTracking] fetch for $code, status=$_selectedStatus');
+
+      // 1) gọi real
+      final real = await OrdersApi.fetchMyOrders(
+        code,
+        status: _selectedStatus,
+        token: token,
+      );
+      debugPrint('[OrderTracking] real=${real.length}');
+
+      // 2) nếu real có → dùng real
+      if (real.isNotEmpty) return real;
+
+      // 3) nếu real rỗng → fallback mock (demo)
+      final mock = await OrderService.fetchOrders(
+        status: _selectedStatus == 'ALL' ? null : _selectedStatus,
+        customerCode: code,
+      );
+      debugPrint('[OrderTracking] mock=${mock.length}');
+      return mock;
     } catch (e) {
-      // Ném lỗi ra để FutureBuilder bắt
-      print("Lỗi _fetchOrders: $e");
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      debugPrint('[OrderTracking] error: $e, fallback mock');
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      return OrderService.fetchOrders(
+        status: _selectedStatus == 'ALL' ? null : _selectedStatus,
+        customerCode: auth.customerCode,
+      );
     }
   }
 
-  // Hàm refresh (gọi lại API)
   Future<void> _onRefresh() async {
     setState(() {
       _futureOrders = _fetchOrders();
     });
-    await _futureOrders; // Chờ cho đến khi tải xong
+    await _futureOrders;
   }
 
-  // (Các hàm helper định dạng)
-  String _formatDateTime(DateTime dateTime) {
-    return DateFormat('dd/MM/yyyy HH:mm').format(dateTime);
-  }
+  String _formatDateTime(DateTime dt) =>
+      DateFormat('dd/MM/yyyy HH:mm').format(dt);
 
   Color _getStatusColor(String status) {
     switch (status.toUpperCase()) {
-      case 'PENDING': return Colors.orange;
-      case 'DELIVERED': return Colors.green;
-      case 'CANCELLED': return Colors.red;
-      default: return Colors.grey;
+      case 'UNPAID':
+        return Colors.deepOrange;
+      case 'PENDING':
+      case 'PENDING_SHIPMENT':
+        return Colors.orange;
+      case 'IN_TRANSIT':
+        return Colors.blue;
+      case 'DELIVERED':
+        return Colors.green;
+      case 'NEED_REVIEW':
+        return Colors.teal;
+      case 'RETURNED':
+        return Colors.purple;
+      case 'CANCELLED':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
   String _getStatusText(String status) {
     switch (status.toUpperCase()) {
-      case 'PENDING': return 'Chờ xác nhận';
-      case 'DELIVERED': return 'Đã giao';
-      case 'CANCELLED': return 'Đã hủy';
-      default: return 'Không rõ';
+      case 'UNPAID':
+        return 'Chưa thanh toán';
+      case 'PENDING':
+        return 'Chờ xác nhận';
+      case 'PENDING_SHIPMENT':
+        return 'Chờ vận chuyển';
+      case 'IN_TRANSIT':
+        return 'Đã vận chuyển';
+      case 'DELIVERED':
+        return 'Đã giao';
+      case 'NEED_REVIEW':
+        return 'Cần đánh giá';
+      case 'RETURNED':
+        return 'Trả hàng';
+      case 'CANCELLED':
+        return 'Đã hủy';
+      default:
+        return 'Không rõ';
     }
+  }
+
+  List<Order> _applyFilter(List<Order> list) {
+    if (_selectedStatus == 'ALL') return list;
+    return list.where((o) => o.status.toUpperCase() == _selectedStatus).toList();
   }
 
   @override
@@ -84,23 +150,18 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         title: const Text('Đơn Hàng Của Tôi'),
         backgroundColor: AppColors.card,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _onRefresh, // Gọi hàm refresh
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _onRefresh),
         ],
       ),
-      // 🔴 SỬA: Dùng FutureBuilder để hiển thị
       body: FutureBuilder<List<Order>>(
         future: _futureOrders,
         builder: (context, snapshot) {
-          // Khi đang tải
           if (snapshot.connectionState == ConnectionState.waiting) {
+            debugPrint('[OrderTracking] waiting...');
             return const Center(child: CircularProgressIndicator());
           }
-
-          // Khi có lỗi
           if (snapshot.hasError) {
+            debugPrint('[OrderTracking] error screen: ${snapshot.error}');
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -110,79 +171,135 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     Text('Lỗi: ${snapshot.error}', textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _onRefresh,
-                      child: const Text('Thử lại'),
-                    ),
+                        onPressed: _onRefresh, child: const Text('Thử lại')),
                   ],
                 ),
               ),
             );
           }
 
-          // Khi thành công
-          final myOrders = snapshot.data ?? [];
-          if (myOrders.isEmpty) {
-            return const Center(child: Text('Bạn chưa có đơn hàng nào.'));
-          }
+          final all = snapshot.data ?? [];
+          final filtered = _applyFilter(all);
 
-          // Hiển thị ListView
           return RefreshIndicator(
             onRefresh: _onRefresh,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(8.0),
-              itemCount: myOrders.length,
-              itemBuilder: (context, index) {
-                final order = myOrders[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 8.0),
-                  elevation: 2,
-                  child: InkWell(
-                    onTap: () {
-                      // TODO: Mở trang Chi tiết đơn hàng (nếu có)
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Mã Đơn: ${order.orderCode}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(order.status).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  _getStatusText(order.status), // Hiển thị chữ Việt
-                                  style: TextStyle(
-                                    color: _getStatusColor(order.status),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
+            child: Column(
+              children: [
+                // dải chip lọc trạng thái
+                SizedBox(
+                  height: 52,
+                  child: ListView(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    scrollDirection: Axis.horizontal,
+                    children: _statusFilters.entries.map((e) {
+                      final selected = _selectedStatus == e.key;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(e.value),
+                          selected: selected,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedStatus = e.key;
+                              _futureOrders = _fetchOrders();
+                            });
+                          },
+                          selectedColor:
+                          AppColors.primary.withOpacity(0.15),
+                          labelStyle: TextStyle(
+                            color: selected
+                                ? AppColors.primary
+                                : Colors.black87,
+                            fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w400,
                           ),
-                          const SizedBox(height: 8),
-                          Text('Ngày đặt: ${_formatDateTime(order.orderDate)}'),
-                          Text('Tổng tiền: ${order.totalAmount.toStringAsFixed(0)}đ'),
-                          Text('Địa chỉ: ${order.address}'),
-                          Text('SĐT: ${order.phoneNumber}'),
-                          const Divider(height: 20),
-
-                          // Hiển thị TẤT CẢ sản phẩm trong đơn hàng
-                          ...order.details.map((detail) => _buildOrderDetailItem(detail)).toList(),
-                        ],
-                      ),
-                    ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                );
-              },
+                ),
+                const Divider(height: 1),
+
+                Expanded(
+                  child: (filtered.isEmpty)
+                      ? const Center(child: Text('Chưa có đơn hàng.'))
+                      : ListView.builder(
+                    padding: const EdgeInsets.all(8.0),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final order = filtered[i];
+                      return Card(
+                        margin:
+                        const EdgeInsets.symmetric(vertical: 8.0),
+                        elevation: 2,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => OrderDetailScreen(
+                                    orderCode: order.orderCode),
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Mã Đơn: ${order.orderCode}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16)),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: _getStatusColor(
+                                            order.status)
+                                            .withOpacity(0.15),
+                                        borderRadius:
+                                        BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        _getStatusText(order.status),
+                                        style: TextStyle(
+                                          color: _getStatusColor(
+                                              order.status),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                    'Ngày đặt: ${_formatDateTime(order.orderDate)}'),
+                                Text(
+                                    'Tổng tiền: ${_currency.format(order.totalAmount)}'),
+                                Text('Địa chỉ: ${order.address}'),
+                                Text('SĐT: ${order.phoneNumber}'),
+                                const Divider(height: 20),
+
+                                // hiển thị từng dòng sản phẩm
+                                ...order.details
+                                    .map(_buildOrderDetailItem)
+                                    .toList(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           );
         },
@@ -190,38 +307,37 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
-  // Widget helper để hiển thị chi tiết sản phẩm
-  Widget _buildOrderDetailItem(OrderDetail detail) {
-    final String imageUrl = (detail.imageUrl.isNotEmpty &&
-        (detail.imageUrl.startsWith('http') ||
-            detail.imageUrl.startsWith('httpsF')))
-        ? detail.imageUrl
-        : 'http://10.0.2.2:8080${detail.imageUrl}'; // Giả sử ảnh cần host
-
+  Widget _buildOrderDetailItem(OrderDetail d) {
+    final imageUrl = d.imageUrl;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
-          Image.network(
-            imageUrl,
-            width: 40,
-            height: 40,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-            const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.network(
+              imageUrl,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 44,
+                height: 44,
+                color: Colors.grey.shade200,
+                child: const Icon(Icons.image, size: 20),
+              ),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '${detail.productName} (SL: ${detail.quantity})',
-              style: const TextStyle(fontSize: 14),
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text('${d.productName} (SL: ${d.quantity})',
+                overflow: TextOverflow.ellipsis),
           ),
           Text(
-            '${(detail.price * detail.quantity).toStringAsFixed(0)}đ',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          )
+            _currency.format(d.price * d.quantity),
+            style:
+            const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

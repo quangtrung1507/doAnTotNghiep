@@ -1,9 +1,9 @@
-// lib/screens/login_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/favorite_provider.dart'; // Đã import
-import '../providers/cart_provider.dart';     // Đã import
+import '../providers/cart_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -117,7 +117,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   print("Lỗi tải Yêu thích: $e");
                                 }
 
-                                // 🔴 ĐÃ SỬA: Bỏ comment để tải giỏ hàng
                                 try {
                                   await Provider.of<CartProvider>(context, listen: false)
                                       .fetchCart(customerCode);

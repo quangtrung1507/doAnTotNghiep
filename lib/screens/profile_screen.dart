@@ -155,8 +155,7 @@ class ProfileScreen extends StatelessWidget {
                       );
 
                       if (confirm == true) {
-                        // 🔴 BƯỚC QUAN TRỌNG: XÓA DỮ LIỆU TRONG RAM
-                        // Dùng listen: false để không gây lỗi khi đang build
+
                         Provider.of<FavoriteProvider>(context, listen: false).clearFavorites();
 
                         // Nếu CartProvider của bạn chưa có hàm clearCart(), hãy thêm vào nhé
