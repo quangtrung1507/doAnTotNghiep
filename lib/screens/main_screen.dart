@@ -1,4 +1,3 @@
-// lib/screens/main_screen.dart (Đã sửa lỗi treo)
 import 'package:flutter/material.dart';
 
 // Import NỘI DUNG của các tab
@@ -17,17 +16,12 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // ⬇️ ⬇️ ⬇️ THAY ĐỔI QUAN TRỌNG ⬇️ ⬇️ ⬇️
-  // Chúng ta KHÔNG dùng 'static' VÀ KHÔNG khởi tạo chúng ngay lập tức
-  // Chúng ta sẽ dùng một danh sách các "hàm xây dựng" (builders)
-  // để đảm bảo các tab chỉ được tạo KHI CẦN
   final List<Widget Function()> _widgetBuilders = [
         () => HomeContent(),
         () => FavoriteScreen(),
         () => CartScreen(),
         () => ProfileScreen(),
   ];
-  // ⬆️ ⬆️ ⬆️ KẾT THÚC THAY ĐỔI ⬆️ ⬆️ ⬆️
 
   void _onItemTapped(int index) {
     setState(() {
@@ -38,13 +32,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ⬇️ ⬇️ ⬇️ THAY ĐỔI QUAN TRỌNG ⬇️ ⬇️ ⬇️
-      // BỎ DÙNG IndexedStack (thứ tải cả 4 tab)
-      // Dùng cách đơn giản này để nó CHỈ TẢI 1 TAB (tab đang chọn)
       body: Center(
-        child: _widgetBuilders[_selectedIndex](), // Chỉ build widget của tab hiện tại
+        child: _widgetBuilders[_selectedIndex](),
       ),
-      // ⬆️ ⬆️ ⬆️ KẾT THÚC THAY ĐỔI ⬆️ ⬆️ ⬆️
 
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[

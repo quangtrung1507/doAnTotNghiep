@@ -56,7 +56,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final bool? shouldLogin = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        // 🔴 ĐÃ SỬA LỖI GÕ NHẦM (Xóa chữ R thừa)
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [

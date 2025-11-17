@@ -15,36 +15,28 @@ class CategoryScreen extends StatefulWidget {
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  // *** BẮT ĐẦU SỬA ***
-  // 1. Chuyển Future thành nullable (có thể rỗng)
+
   Future<List<Product>>? _futureProducts;
-  // 2. Thêm cờ (flag) để đảm bảo chỉ chạy 1 lần
+
   bool _isInit = true;
 
   @override
   void initState() {
     super.initState();
-    // 3. KHÔNG gọi Provider.of(context) ở đây
+
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 4. Chỉ chạy logic này 1 LẦN DUY NHẤT
+
     if (_isInit) {
-      // 5. Lấy token từ AuthProvider (an toàn)
       final authToken = Provider.of<AuthProvider>(context, listen: false).authToken;
-
-      // 6. Gọi API và gán cho Future
       _futureProducts = ApiService.fetchProductsByCategory(widget.maLSP);
-
-      // 7. Đặt cờ thành false để không chạy lại
       _isInit = false;
     }
-    // *** KẾT THÚC SỬA ***
   }
 
-  // Hàm helper để lấy URL ảnh đầy đủ
   String getFullImageUrl(String? relativeUrl) {
     if (relativeUrl == null || relativeUrl.isEmpty) {
       return 'https://via.placeholder.com/150'; // Ảnh mặc định
@@ -89,7 +81,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
               final sp = products[index];
               return GestureDetector(
                 onTap: () {
-                  // 🔜 Điều hướng sang trang chi tiết sản phẩm
                   Navigator.of(context).pushNamed(
                     '/product-detail',
                     arguments: sp.maSP,

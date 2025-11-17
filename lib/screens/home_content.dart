@@ -312,7 +312,6 @@ class _HomeContentState extends State<HomeContent> {
 
   // (Hàm _buildProducts)
   Widget _buildProducts() {
-    // 🔴 ĐÃ SỬA: Lấy cả CartProvider và AuthProvider
     final cart = Provider.of<CartProvider>(context, listen: false);
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
@@ -355,12 +354,9 @@ class _HomeContentState extends State<HomeContent> {
             final p = items[i];
             return ProductCard(
               product: p,
-              // 🔴 ĐÃ SỬA: Chuyển onAddToCartPressed thành hàm async
               onAddToCartPressed: () async {
-                // Ghi chú: Logic _checkLogin nằm BÊN TRONG ProductCard rồi
 
                 try {
-                  // 🔴 ĐÃ SỬA: Gọi addItem với 2 tham số (product và customerCode)
                   await cart.addItem(p, auth.customerCode);
 
                   if (context.mounted) {

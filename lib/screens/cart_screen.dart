@@ -17,7 +17,6 @@ class CartScreen extends StatelessWidget {
     return Consumer2<CartProvider, AuthProvider>(
       builder: (context, cartProvider, authProvider, child) {
 
-        // 🔴 LẤY MÃ KHÁCH HÀNG
         final customerCode = authProvider.customerCode;
 
         return Scaffold(
@@ -80,7 +79,7 @@ class CartScreen extends StatelessWidget {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // 🔴 SỬA LỖI: Thêm customerCode
+
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline),
                               onPressed: () {
@@ -88,14 +87,14 @@ class CartScreen extends StatelessWidget {
                               },
                             ),
                             Text(item.quantity.toString(), style: const TextStyle(fontSize: 16)),
-                            // 🔴 SỬA LỖI: Thêm customerCode
+
                             IconButton(
                               icon: const Icon(Icons.add_circle_outline),
                               onPressed: () {
                                 cartProvider.increaseQuantity(product.maSP, customerCode);
                               },
                             ),
-                            // 🔴 SỬA LỖI: Thêm customerCode
+
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
                               onPressed: () {
@@ -111,7 +110,6 @@ class CartScreen extends StatelessWidget {
               ),
               // Phần tổng kết và thanh toán
               Container(
-                // ... (code giao diện phần tổng tiền giữ nguyên) ...
                 padding: const EdgeInsets.all(16),
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -126,7 +124,6 @@ class CartScreen extends StatelessWidget {
                     ),
 
                     ElevatedButton(
-                      // (Logic nút thanh toán của bạn đã tốt, giữ nguyên)
                       onPressed: () async {
                         if (authProvider.isAuthenticated) {
                           Navigator.push(
