@@ -1,15 +1,16 @@
 // lib/services/promotion_service.dart
 import 'dart:convert';
+import 'package:bookstore/models/promotion_model.dart';
 import 'package:http/http.dart' as http;
 
-import '../models/promotion.dart';
+import '../models/promotion_model.dart';
 import 'api_service.dart' show ApiService;
 
 class PromotionService {
   // -> http://<host>:8080/v1/api/promotions
   static Uri _url() => Uri.parse('${ApiService.baseUrl}/promotions');
 
-  static Future<List<Promotion>> fetchActivePromotions({String? token}) async {
+  static Future<List<PromotionModel>> fetchActivePromotions({String? token}) async {
     final url = _url();
     final headers = <String, String>{
       'Accept': 'application/json',
@@ -33,7 +34,7 @@ class PromotionService {
 
     final promos = data
         .whereType<Map<String, dynamic>>()
-        .map((e) => Promotion.fromJson(e))
+        .map((e) => PromotionModel.fromJson(e))
         .toList();
 
     // Nếu có trường status boolean thì lọc true; nếu không có thì giữ nguyên

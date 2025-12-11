@@ -1,7 +1,6 @@
 // lib/screens/checkout_screen.dart
 import 'package:bookstore/screens/order_detail_screen.dart';
 import 'package:bookstore/screens/pay_with_qr_screen.dart';
-import 'package:bookstore/screens/pay_with_qr_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,9 +8,9 @@ import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
-import '../models/promotion.dart';
+import '../models/promotion_model.dart';
 import '../services/promotion_service.dart';
-import 'order_tracking_screen.dart';
+import '../models/cart_item.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -21,7 +20,6 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  // ======= Giữ nguyên các biến cũ của bạn =======
   final _formKey = GlobalKey<FormState>();
   final _diaChiController = TextEditingController();
   final _sdtController = TextEditingController();
@@ -41,10 +39,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map<String, dynamic>? _selectedDistrict;
   Map<String, dynamic>? _selectedWard;
 
-  // ======= MỚI: Voucher =======
+  // Voucher
   bool _loadingPromotions = false;
-  List<Promotion> _promotions = [];
-  Promotion? _selectedPromotion;
+  List<PromotionModel> _promotions = [];
+  PromotionModel? _selectedPromotion;
 
   @override
   void initState() {
@@ -61,7 +59,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
-  // ======= GHN: Tỉnh/Huyện/Xã (giữ y chang) =======
+  // ============= GHN =============
   Future<void> _loadProvinces() async {
     try {
       final provinces = await ApiService.fetchProvinces();
@@ -113,58 +111,57 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // ======= PROMOTIONS (Voucher) =======
+  // ============= PROMOTIONS (Voucher) =============
   Future<void> _loadPromotions() async {
     setState(() => _loadingPromotions = true);
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final token = auth.authToken;
-      // thử PromotionService (đa đường dẫn); có token nếu server yêu cầu
+
+      // ✅ GỌI DUY NHẤT PromotionService
       final list = await PromotionService.fetchActivePromotions(token: token);
-      setState(() {
-        _promotions = list;
-      });
-    } catch (_) {
-      // fallback sang ApiService (một đường dẫn cố định)
-      try {
-        final list = await ApiService.fetchActivePromotions();
+
+      if (mounted) {
         setState(() {
           _promotions = list.where((x) => x.status == true).toList();
         });
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi tải voucher: ${e.toString()}')),
-          );
-        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi tải voucher: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _loadingPromotions = false);
     }
   }
 
-  // ======= TÍNH TIỀN (có voucher) =======
+
+  // TÍNH GIẢM GIÁ (voucher)
   double _calcDiscount(double merchandiseTotal) {
     if (_selectedPromotion == null) return 0.0;
 
-    // PT_01 = Percent, PT_02 = Amount (theo BE của bạn)
     if (_selectedPromotion!.promotionTypeCode == 'PT_01') {
-      final percent = _selectedPromotion!.value; // ví dụ 0.05 = 5%
+      final percent = _selectedPromotion!.value; // 0.05 = 5%
       return (merchandiseTotal * percent).clamp(0, merchandiseTotal);
     } else if (_selectedPromotion!.promotionTypeCode == 'PT_02') {
-      final amount = _selectedPromotion!.value; // ví dụ 200000
+      final amount = _selectedPromotion!.value;
       return amount.clamp(0, merchandiseTotal);
     }
     return 0.0;
   }
 
-  // ======= ĐẶT HÀNG =======
+  // ============= ĐẶT HÀNG =============
   Future<void> _submitOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    if (cartProvider.items.isEmpty) {
-      _showErrorDialog('Giỏ hàng của bạn đang trống.');
+    // 👉 Luôn dùng toàn bộ giỏ hàng
+    final List<CartItem> checkoutItems = cartProvider.items;
+
+    if (checkoutItems.isEmpty) {
+      _showErrorDialog('Giỏ hàng đang trống, không có sản phẩm để thanh toán.');
       return;
     }
 
@@ -182,45 +179,45 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final String province = _selectedProvince?['ProvinceName'] ?? '';
       final String fullAddress = "$street, $ward, $district, $province";
 
-      // Tính tiền để truyền sang QR (nếu cần)
-      final cart = Provider.of<CartProvider>(context, listen: false);
-      final double merchandise = cart.totalPrice;
+      // ✅ Tổng tiền trên toàn bộ giỏ
+      final double merchandise = checkoutItems.fold<double>(
+        0.0,
+            (sum, it) => sum + it.product.gia * it.quantity,
+      );
       final double discount = _calcDiscount(merchandise);
-      final double ship = 30000.0;
-      final double grandTotal = (merchandise - discount + ship).clamp(0, double.infinity);
+      final double grandTotal =
+      (merchandise - discount).clamp(0, double.infinity);
 
-      // 🔥 TẠO ĐƠN – NHẬN LẠI orderCode
+      // TẠO ĐƠN
       final String orderCode = await ApiService.createOrder(
         customerCode: customerCode,
-        cartItems: cartProvider.items,
+        cartItems: checkoutItems,
         address: fullAddress,
         phoneNumber: _sdtController.text,
         paymentMethod: _phuongThucThanhToan == 'COD' ? 'Cash' : 'QR',
         note: _ghiChuController.text,
-        promotionCode: _selectedPromotion?.promotionCode, // ✅ truyền voucher nếu có
+        promotionCode: _selectedPromotion?.promotionCode,
+        promotionValue: _selectedPromotion?.value,
       );
 
-      // Xóa giỏ local
+      // ✅ Sau khi đặt hàng: xóa toàn bộ giỏ (giống web)
       cartProvider.clearCart();
-      // Best-effort xóa server
-      try { await ApiService.clearCartOnServer(customerCode); } catch (_) {}
+      try {
+        await ApiService.clearCartOnServer(customerCode);
+      } catch (_) {}
 
       if (!mounted) return;
 
-      // 👉 Điều hướng ngay theo phương thức thanh toán
       if (_phuongThucThanhToan == 'BANK') {
-        // sang QR thật để hoàn tất
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => PayWithQrScreen(
               orderCode: orderCode,
               amount: grandTotal.round(),
-
             ),
           ),
         );
       } else {
-        // COD: xem chi tiết đơn vừa tạo
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => OrderDetailScreen(orderCode: orderCode),
@@ -242,20 +239,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         title: const Text('Có lỗi xảy ra!'),
         content: Text(message.replaceAll('Exception: ', '')),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
   }
 
-  // ======= UI =======
   @override
   Widget build(BuildContext context) {
     final cartProvider = Provider.of<CartProvider>(context);
-    final tongTienHang = cartProvider.totalPrice;
+    final List<CartItem> checkoutItems = cartProvider.items;
+
+    final tongTienHang = checkoutItems.fold<double>(
+      0.0,
+          (sum, it) => sum + it.product.gia * it.quantity,
+    );
     final giamGia = _calcDiscount(tongTienHang);
-    final phiVanChuyen = 30000.0;
-    final tongThanhToan = (tongTienHang - giamGia + phiVanChuyen).clamp(0, double.infinity);
+    final tongThanhToan =
+    (tongTienHang - giamGia).clamp(0, double.infinity);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -270,7 +274,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Thông tin giao hàng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Thông tin giao hàng',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Card(
                 child: Padding(
@@ -279,9 +284,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     children: [
                       TextFormField(
                         controller: _sdtController,
-                        decoration: const InputDecoration(labelText: 'Số điện thoại'),
+                        decoration:
+                        const InputDecoration(labelText: 'Số điện thoại'),
                         keyboardType: TextInputType.phone,
-                        validator: (value) => (value == null || value.trim().isEmpty)
+                        validator: (value) =>
+                        (value == null || value.trim().isEmpty)
                             ? 'Vui lòng nhập số điện thoại'
                             : null,
                       ),
@@ -328,20 +335,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         items: _wards,
                         displayKey: 'WardName',
                         selectedValue: _selectedWard,
-                        onChanged: (value) => setState(() => _selectedWard = value),
+                        onChanged: (value) =>
+                            setState(() => _selectedWard = value),
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _diaChiController,
-                        decoration: const InputDecoration(labelText: 'Địa chỉ (Số nhà, tên đường)'),
-                        validator: (value) => (value == null || value.trim().isEmpty)
+                        decoration: const InputDecoration(
+                            labelText: 'Địa chỉ (Số nhà, tên đường)'),
+                        validator: (value) =>
+                        (value == null || value.trim().isEmpty)
                             ? 'Vui lòng nhập địa chỉ'
                             : null,
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _ghiChuController,
-                        decoration: const InputDecoration(labelText: 'Ghi chú (tùy chọn)'),
+                        decoration: const InputDecoration(
+                            labelText: 'Ghi chú (tùy chọn)'),
                       ),
                     ],
                   ),
@@ -349,7 +360,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
 
               const SizedBox(height: 24),
-              const Text('Phương thức thanh toán', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Phương thức thanh toán',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Card(
                 child: Column(
@@ -358,21 +370,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       title: const Text('Thanh toán khi nhận hàng (COD)'),
                       value: 'COD',
                       groupValue: _phuongThucThanhToan,
-                      onChanged: (value) => setState(() => _phuongThucThanhToan = value!),
+                      onChanged: (value) =>
+                          setState(() => _phuongThucThanhToan = value!),
                     ),
                     RadioListTile<String>(
                       title: const Text('Chuyển khoản ngân hàng'),
                       value: 'BANK',
                       groupValue: _phuongThucThanhToan,
-                      onChanged: (value) => setState(() => _phuongThucThanhToan = value!),
+                      onChanged: (value) =>
+                          setState(() => _phuongThucThanhToan = value!),
                     ),
                   ],
                 ),
               ),
 
-              // ======= VOUCHER =======
               const SizedBox(height: 16),
-              const Text('Voucher', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Voucher',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Card(
                 child: ListTile(
@@ -390,19 +404,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       ),
 
-      // ======= TỔNG KẾT + ĐẶT HÀNG =======
+      // TỔNG KẾT + ĐẶT HÀNG
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, -2))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black12, blurRadius: 5, offset: Offset(0, -2))
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _row('Tổng tiền hàng:', '${tongTienHang.toStringAsFixed(0)}đ'),
             _row('Giảm giá:', '- ${giamGia.toStringAsFixed(0)}đ'),
-            _row('Phí vận chuyển:', '${phiVanChuyen.toStringAsFixed(0)}đ'),
             const Divider(height: 24),
             _row(
               'Tổng thanh toán:',
@@ -422,10 +438,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 child: _isLoading
                     ? const SizedBox(
-                  width: 20, height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 3),
                 )
-                    : const Text('Đặt Hàng', style: TextStyle(fontSize: 16)),
+                    : const Text('Đặt Hàng',
+                    style: TextStyle(fontSize: 16)),
               ),
             )
           ],
@@ -434,8 +453,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  // ======= Helper UI =======
-  Widget _row(String k, String v, {bool isBold = false, Color? valueColor, double? fontSize}) {
+  Widget _row(String k, String v,
+      {bool isBold = false, Color? valueColor, double? fontSize}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -473,7 +492,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ? const Padding(
             padding: EdgeInsets.all(10.0),
             child: SizedBox(
-              width: 18, height: 18,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           )
@@ -481,7 +501,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         hint: Text(hint),
         onChanged: (isLoading || items.isEmpty) ? null : onChanged,
-        validator: (value) => (value == null) ? 'Vui lòng chọn $label' : null,
+        validator: (value) =>
+        (value == null) ? 'Vui lòng chọn $label' : null,
         items: items.map((item) {
           return DropdownMenuItem<Map<String, dynamic>>(
             value: item,
@@ -501,10 +522,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ),
       builder: (ctx) {
         if (_loadingPromotions) {
-          return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
+          return const SizedBox(
+              height: 200,
+              child: Center(child: CircularProgressIndicator()));
         }
         if (_promotions.isEmpty) {
-          return const SizedBox(height: 200, child: Center(child: Text('Chưa có voucher khả dụng')));
+          return const SizedBox(
+              height: 200,
+              child: Center(child: Text('Chưa có voucher khả dụng')));
         }
         return DraggableScrollableSheet(
           expand: false,
@@ -515,9 +540,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             return Column(
               children: [
                 const SizedBox(height: 8),
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(2))),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
                 const SizedBox(height: 8),
-                const Text('Chọn voucher', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text('Chọn voucher',
+                    style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 8),
                 Expanded(
                   child: ListView.builder(
@@ -525,7 +558,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     itemCount: _promotions.length,
                     itemBuilder: (_, i) {
                       final p = _promotions[i];
-                      final selected = _selectedPromotion?.promotionCode == p.promotionCode;
+                      final selected = _selectedPromotion?.promotionCode ==
+                          p.promotionCode;
                       final typeText = (p.promotionTypeCode == 'PT_01')
                           ? '${(p.value * 100).toStringAsFixed(0)}%'
                           : '${p.value.toStringAsFixed(0)}đ';
@@ -534,7 +568,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         leading: const Icon(Icons.card_giftcard),
                         title: Text('${p.promotionCode} • $typeText'),
                         subtitle: Text(p.promotionName),
-                        trailing: selected ? const Icon(Icons.check, color: Colors.green) : null,
+                        trailing: selected
+                            ? const Icon(Icons.check, color: Colors.green)
+                            : null,
                         onTap: () {
                           setState(() => _selectedPromotion = p);
                           Navigator.pop(context);

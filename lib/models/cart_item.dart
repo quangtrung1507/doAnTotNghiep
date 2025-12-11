@@ -18,7 +18,6 @@ class CartItem {
     final productData = Product.fromJson(json['product'] as Map<String, dynamic>);
     final qty = (json['quantity'] as int?) ?? 1;
 
-    // 🔴 THÊM LOG ĐỂ KIỂM TRA
     print('🛒 [CartItem] Đã parse: ${productData.tenSP} (SL: $qty)');
 
     return CartItem(
@@ -26,4 +25,10 @@ class CartItem {
       quantity: qty,
     );
   }
+
+  // ✅ Getter tiện dụng – KHÔNG bắt buộc nhưng rất hữu ích
+  String get productCode => product.maSP;
+  String get productName => product.tenSP;
+  String get imageUrl   => product.hinhAnh;
+  double get price      => product.gia;
 }

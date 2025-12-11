@@ -5,7 +5,7 @@ class OrderDetail {
   final String productCode;
   final String productName;
   final String imageUrl;
-  final double price;      // unit price
+  final double price; // unit price
   final int quantity;
   final String? promotionCode;
 
@@ -19,24 +19,27 @@ class OrderDetail {
   });
 
   factory OrderDetail.fromJson(Map<String, dynamic> json) {
-    String pCode  = (json['productCode'] ?? json['product_code'] ?? '').toString();
-    String pName  = (json['productName'] ?? json['product_name'] ?? '').toString();
-    String pImg   = (json['imageUrl'] ?? json['image'] ?? '').toString();
-    double pPrice = (json['unitPrice'] as num?)
-        ?.toDouble() ??
-        (json['price'] as num?)
-            ?.toDouble() ??
-        (json['unit_price'] as num?)
-            ?.toDouble() ??
-        0.0;
+    String pCode =
+    (json['productCode'] ?? json['product_code'] ?? '').toString();
+    String pName =
+    (json['productName'] ?? json['product_name'] ?? '').toString();
+    String pImg = (json['imageUrl'] ?? json['image'] ?? '').toString();
+    double pPrice =
+        (json['unitPrice'] as num?)?.toDouble() ??
+            (json['price'] as num?)?.toDouble() ??
+            (json['unit_price'] as num?)?.toDouble() ??
+            0.0;
 
     // Nếu BE nhét cả productEntity
     if (json['productEntity'] is Map) {
       try {
-        final p = Product.fromJson(Map<String, dynamic>.from(json['productEntity']));
-        pCode  = p.maSP.isNotEmpty ? p.maSP   : pCode;
-        pName  = p.tenSP.isNotEmpty ? p.tenSP : (pName.isEmpty ? 'Sản phẩm' : pName);
-        pImg   = p.hinhAnh.isNotEmpty ? p.hinhAnh : pImg;
+        final p =
+        Product.fromJson(Map<String, dynamic>.from(json['productEntity']));
+        pCode = p.maSP.isNotEmpty ? p.maSP : pCode;
+        pName = p.tenSP.isNotEmpty
+            ? p.tenSP
+            : (pName.isEmpty ? 'Sản phẩm' : pName);
+        pImg = p.hinhAnh.isNotEmpty ? p.hinhAnh : pImg;
         pPrice = p.gia > 0 ? p.gia : pPrice;
       } catch (_) {}
     }
@@ -47,7 +50,8 @@ class OrderDetail {
       imageUrl: pImg,
       price: pPrice,
       quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      promotionCode: (json['promotionCode'] ?? json['promotion_code'])?.toString(),
+      promotionCode:
+      (json['promotionCode'] ?? json['promotion_code'])?.toString(),
     );
   }
 
@@ -77,12 +81,26 @@ class Order {
   final String phoneNumber;
   final String paymentMethod;
   final String orderType;
+
+  /// Chuẩn hoá status về 1 trong các giá trị:
+  /// 'pending', 'confirmed', 'preparing', 'shipping',
+  /// 'delivered', 'cancelled', 'returned'
   final String status;
+
   final String? note;
   final DateTime orderDate;
-  final double totalAmount;      // finalAmount nếu có
-  final String? promotionCode;   // ở header (nếu có)
-  final String? promotionName;   // ở header (nếu có)
+  final double totalAmount; // finalAmount nếu có
+
+  /// Khuyến mãi tổng đơn – dạng cũ (nếu có)
+  final String? promotionCode;
+  final String? promotionName;
+
+  /// 🔴 MỚI: mã VIP theo loại khách hàng (nếu BE trả về)
+  final String? promotionCustomerCode;
+
+  /// 🔴 MỚI: mã coupon nhập tay (nếu BE trả về)
+  final String? couponCode;
+
   final List<OrderDetail> details;
 
   Order({
@@ -98,6 +116,8 @@ class Order {
     required this.totalAmount,
     this.promotionCode,
     this.promotionName,
+    this.promotionCustomerCode,
+    this.couponCode,
     required this.details,
   });
 
@@ -114,22 +134,114 @@ class Order {
 
     String cusCode = (json['customerCode'] ?? '').toString();
     if (json['customerEntity'] is Map) {
-      cusCode = (json['customerEntity']['customer_code'] ?? cusCode).toString();
+      cusCode =
+          (json['customerEntity']['customer_code'] ?? cusCode).toString();
     }
 
-    String orderStatus = (json['status'] ?? json['orderStatus'] ?? 'PENDING').toString();
-    final bool? statusBool = json['status'] is bool ? json['status'] as bool : null;
-    final bool? isPaidBool = json['isPaid'] is bool ? json['isPaid'] as bool : null;
-    if (statusBool == false) orderStatus = 'CANCELLED';
-    else if (statusBool == true && isPaidBool == false) orderStatus = 'PENDING';
-    else if (isPaidBool == true) orderStatus = 'DELIVERED';
+    // =========================
+    // Chuẩn hoá trạng thái đơn
+    // =========================
+    String normalizeStatus(String? raw) {
+      var s = (raw ?? '').trim().toLowerCase().replaceAll(' ', '_');
 
-    final createdStr = (json['createdDate'] ?? json['orderDate'] ?? '').toString();
-    final created = createdStr.isNotEmpty ? DateTime.parse(createdStr) : DateTime.now();
+      switch (s) {
+      // chờ xác nhận
+        case 'pending':
+        case 'pending_confirmation':
+          return 'pending';
+
+      // đã xác nhận
+        case 'confirmed':
+          return 'confirmed';
+
+      // đang chuẩn bị
+        case 'pending_shipment': // kiểu cũ
+        case 'preparing':
+        case 'processing': // enum PROCESSING
+          return 'preparing';
+
+      // đang giao hàng
+        case 'in_transit': // kiểu cũ
+        case 'shipping':
+          return 'shipping';
+
+      // đã giao
+        case 'delivered':
+          return 'delivered';
+
+      // đã trả hàng
+        case 'returned':
+          return 'returned';
+
+      // đã hủy
+        case 'cancelled':
+        case 'canceled':
+          return 'cancelled';
+
+        default:
+          return '';
+      }
+    }
+
+    dynamic rawStatusField =
+        json['orderStatus'] ?? json['order_status'] ?? json['status'];
+
+    String orderStatus = '';
+
+    // 1) Nếu BE trả chuỗi → chuẩn hoá trực tiếp
+    if (rawStatusField is String && rawStatusField.isNotEmpty) {
+      orderStatus = normalizeStatus(rawStatusField);
+    }
+
+    // 2) Nếu chưa ra được → fallback kiểu cũ bool status + isPaid
+    if (orderStatus.isEmpty) {
+      final bool? statusBool = rawStatusField is bool
+          ? rawStatusField
+          : (json['status'] is bool ? json['status'] as bool : null);
+      final bool? isPaidBool =
+      json['isPaid'] is bool ? json['isPaid'] as bool : null;
+
+      if (statusBool == false) {
+        orderStatus = 'cancelled';
+      } else if (isPaidBool == true) {
+        orderStatus = 'delivered';
+      } else {
+        orderStatus = 'pending';
+      }
+    }
+
+    // 3) Nếu vì lý do gì đó vẫn rỗng → mặc định pending
+    if (orderStatus.isEmpty) {
+      orderStatus = 'pending';
+    }
+
+    final createdStr =
+    (json['createdDate'] ?? json['orderDate'] ?? '').toString();
+    final created =
+    createdStr.isNotEmpty ? DateTime.parse(createdStr) : DateTime.now();
 
     final total = (json['finalAmount'] as num?)?.toDouble() ??
         (json['totalAmount'] as num?)?.toDouble() ??
         0.0;
+
+    // 🔴 Đọc tất cả khả năng cho các field mã giảm giá
+    final promoCode = (json['promotionCode'] ??
+        json['promotion_code'] ??
+        json['voucherCode'] ??
+        json['voucher_code'])
+        ?.toString();
+
+    final promoName =
+    (json['promotionName'] ?? json['promotion_name'])?.toString();
+
+    final promoCustomerCode = (json['promotionCustomerCode'] ??
+        json['promotion_customer_code'] ??
+        json['customerPromotionCode'] ??
+        json['customer_promotion_code'])
+        ?.toString();
+
+    final couponCode =
+    (json['couponCode'] ?? json['coupon_code'])?.toString();
 
     return Order(
       orderCode: (json['orderCode'] ?? json['order_code'] ?? '').toString(),
@@ -142,8 +254,10 @@ class Order {
       note: json['note']?.toString(),
       orderDate: created,
       totalAmount: total,
-      promotionCode: (json['promotionCode'] ?? json['promotion_code'])?.toString(),
-      promotionName: (json['promotionName'] ?? json['promotion_name'])?.toString(),
+      promotionCode: promoCode,
+      promotionName: promoName,
+      promotionCustomerCode: promoCustomerCode,
+      couponCode: couponCode,
       details: details,
     );
   }
@@ -161,6 +275,8 @@ class Order {
     double? totalAmount,
     String? promotionCode,
     String? promotionName,
+    String? promotionCustomerCode,
+    String? couponCode,
     List<OrderDetail>? details,
   }) {
     return Order(
@@ -176,6 +292,9 @@ class Order {
       totalAmount: totalAmount ?? this.totalAmount,
       promotionCode: promotionCode ?? this.promotionCode,
       promotionName: promotionName ?? this.promotionName,
+      promotionCustomerCode:
+      promotionCustomerCode ?? this.promotionCustomerCode,
+      couponCode: couponCode ?? this.couponCode,
       details: details ?? this.details,
     );
   }
@@ -187,7 +306,11 @@ class ShipmentEvent {
   final String location;
   final String status;
 
-  ShipmentEvent({required this.time, required this.location, required this.status});
+  ShipmentEvent({
+    required this.time,
+    required this.location,
+    required this.status,
+  });
 
   factory ShipmentEvent.fromJson(Map<String, dynamic> json) {
     final timeRaw = json['time'] ?? json['timestamp'] ?? json['createdAt'];
@@ -199,7 +322,8 @@ class ShipmentEvent {
     }
     return ShipmentEvent(
       time: parsed,
-      location: (json['location'] ?? json['hub'] ?? json['place'] ?? '').toString(),
+      location:
+      (json['location'] ?? json['hub'] ?? json['place'] ?? '').toString(),
       status: (json['status'] ?? json['event'] ?? '').toString(),
     );
   }

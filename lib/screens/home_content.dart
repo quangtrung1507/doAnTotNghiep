@@ -8,10 +8,12 @@ import '../models/product.dart';
 import '../models/product_category.dart';
 import '../services/api_service.dart';
 import '../providers/cart_provider.dart';
-import '../providers/auth_provider.dart'; // Import AuthProvider
+import '../providers/auth_provider.dart';
 import '../widgets/product_card.dart';
 
 import 'main_category_products_screen.dart';
+import 'cart_screen.dart';
+import 'product_detail_screen.dart';
 
 class HomeContent extends StatefulWidget {
   const HomeContent({Key? key}) : super(key: key);
@@ -47,7 +49,7 @@ class _HomeContentState extends State<HomeContent> {
   Future<void> _reload() async {
     setState(() {
       _futureProducts = _loadProducts();
-      _futureCategories = ApiService.fetchAllCategories(); // Tải lại categories
+      _futureCategories = ApiService.fetchAllCategories();
     });
     await _futureProducts;
   }
@@ -55,9 +57,8 @@ class _HomeContentState extends State<HomeContent> {
   Future<void> _doSearch(String q) async {
     final query = q.trim();
     setState(() {
-      _futureProducts = query.isEmpty
-          ? _loadProducts()
-          : ApiService.searchProducts(query);
+      _futureProducts =
+      query.isEmpty ? _loadProducts() : ApiService.searchProducts(query);
     });
   }
 
@@ -75,12 +76,12 @@ class _HomeContentState extends State<HomeContent> {
         slivers: [
           SliverToBoxAdapter(child: _buildHeader()),
           SliverToBoxAdapter(child: _buildBannerSlider()),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-          SliverToBoxAdapter(child: _buildCategoryGrid(context)),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          SliverToBoxAdapter(child: _buildCategoryStrip(context)),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
             sliver: SliverToBoxAdapter(
-              child: _buildSectionTitle('Sản phẩm nổi bật'),
+              child: _buildSectionTitle('Products'),
             ),
           ),
           SliverToBoxAdapter(child: _buildProducts()),
@@ -90,61 +91,196 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-    );
-  }
+  // ================= HEADER =================
 
   Widget _buildHeader() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final cart = Provider.of<CartProvider>(context);          // 👈 LẤY CART
+    final cartCount = cart.items.length;                      // 👈 SỐ LƯỢNG TRONG GIỎ
+
+    final customerCode = auth.customerCode ?? '';
+    final greetingName =
+    customerCode.isEmpty ? 'bạn' : customerCode; // tạm dùng customerCode
+
+    final top = MediaQuery.of(context).padding.top;
+
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        MediaQuery.of(context).padding.top + 8,
-        16,
-        12,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-      ),
-      child: Row(
+      color: AppColors.background,
+      padding: EdgeInsets.fromLTRB(20, top + 16, 20, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtl,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Tìm sản phẩm…',
-                hintStyle: const TextStyle(color: AppColors.textLight, fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: AppColors.textLight),
-                suffixIcon: (_searchCtl.text.isEmpty)
-                    ? null
-                    : IconButton(
-                  icon: const Icon(Icons.clear, color: AppColors.textLight),
-                  onPressed: () {
-                    _searchCtl.clear();
-                    _reload();
-                  },
+          // -------- Hàng avatar + greeting + icon giỏ --------
+          Row(
+            children: [
+              // avatar tròn
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                filled: true,
-                fillColor: AppColors.card,
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
+                child: const Center(
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
                 ),
               ),
-              onSubmitted: _doSearch,
-              onChanged: (_) => setState(() {}),
-            ),
+              const SizedBox(width: 12),
+              // Text chào
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Xin chào,',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                    Text(
+                      greetingName.isEmpty
+                          ? 'Khám phá sách hôm nay nhé'
+                          : greetingName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Icon giỏ hàng trong khung tròn + BADGE
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.shopping_bag_rounded,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                    ),
+                    if (cartCount > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Colors.redAccent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            cartCount > 9 ? '9+' : '$cartCount',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
+          // -------- Thanh search + nút search tròn --------
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtl,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Search for books',
+                    hintStyle: const TextStyle(
+                      color: AppColors.textLight,
+                      fontSize: 14,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onSubmitted: _doSearch,
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Nút search tròn màu primary
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    )
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.search, color: Colors.white),
+                  onPressed: () => _doSearch(_searchCtl.text),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  // ================= BANNER =================
 
   Widget _buildBannerSlider() {
     final items = [
@@ -155,9 +291,9 @@ class _HomeContentState extends State<HomeContent> {
       'lib/assets/1.jpg',
     ];
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      margin: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(18),
         child: CarouselSlider(
           items: items.map((p) {
             return Image.asset(
@@ -167,7 +303,11 @@ class _HomeContentState extends State<HomeContent> {
               errorBuilder: (_, __, ___) => Container(
                 color: Colors.grey.shade200,
                 alignment: Alignment.center,
-                child: const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                child: const Icon(
+                  Icons.broken_image,
+                  size: 48,
+                  color: Colors.grey,
+                ),
               ),
             );
           }).toList(),
@@ -184,7 +324,9 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  Widget _buildCategoryGrid(BuildContext context) {
+  // ================= CATEGORY STRIP =================
+
+  Widget _buildCategoryStrip(BuildContext context) {
     final Map<String, String> labelMap = {
       'book': 'Sách',
       'modelKit': 'Mô hình',
@@ -199,37 +341,27 @@ class _HomeContentState extends State<HomeContent> {
       'pencilEraser': 'Bút chì',
     };
     final Map<String, IconData> iconMap = {
-      'book': Icons.menu_book,
-      'modelKit': Icons.build_circle_outlined,
-      'figure': Icons.person_search_outlined,
-      'calculator': Icons.calculate_outlined,
-      'note': Icons.note_alt_outlined,
-      'watch': Icons.watch_outlined,
-      'pen': Icons.edit_outlined,
-      'draw': Icons.palette_outlined,
+      'book': Icons.menu_book_rounded,
+      'modelKit': Icons.directions_car_filled_rounded,
+      'figure': Icons.toys_rounded,
+      'calculator': Icons.calculate_rounded,
+      'note': Icons.note_alt_rounded,
+      'watch': Icons.watch_rounded,
+      'pen': Icons.edit_rounded,
+      'draw': Icons.brush_rounded,
       'studentBook': Icons.book_outlined,
-      'compaEke': Icons.square_foot_outlined,
-      'pencilEraser': Icons.edit_note_outlined,
-    };
-    final Map<String, Color> colorMap = {
-      'book': Colors.green.shade400,
-      'modelKit': Colors.orange.shade400,
-      'figure': Colors.blue.shade400,
-      'calculator': Colors.teal.shade400,
-      'note': Colors.indigo.shade400,
-      'watch': Colors.lime.shade700,
-      'pen': Colors.pink.shade300,
-      'draw': Colors.purple.shade400,
-      'studentBook': Colors.lightGreen.shade400,
-      'compaEke': Colors.brown.shade400,
-      'pencilEraser': Colors.blueGrey.shade400,
+      'compaEke': Icons.square_foot_rounded,
+      'pencilEraser': Icons.edit_note_rounded,
     };
 
     return FutureBuilder<List<ProductCategory>>(
       future: _futureCategories,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const SizedBox(height: 100, child: Center(child: LinearProgressIndicator()));
+          return const SizedBox(
+            height: 90,
+            child: Center(child: LinearProgressIndicator()),
+          );
         }
 
         final allCategories = snapshot.data ?? [];
@@ -241,68 +373,78 @@ class _HomeContentState extends State<HomeContent> {
         }
         final List<String> categoryCodes = uniqueTypes.toList();
 
-        return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: categoryCodes.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.85,
-          ),
-          itemBuilder: (context, index) {
-            final code = categoryCodes[index];
-            final label = labelMap[code] ?? code;
-            final icon = iconMap[code] ?? Icons.category;
-            final color = colorMap[code] ?? Colors.grey;
+        return SizedBox(
+          height: 90,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            scrollDirection: Axis.horizontal,
+            itemCount: categoryCodes.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final code = categoryCodes[index];
+              final label = labelMap[code] ?? code;
+              final icon = iconMap[code] ?? Icons.category_rounded;
 
-            return _buildGridItem(
-              label,
-              icon,
-              color,
-                  () {
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => MainCategoryProductsScreen(
-                    mainCode: code,
-                    title: label,
-                  ),
-                ));
-              },
-            );
-          },
+              return _buildCategoryItem(
+                label: label,
+                icon: icon,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MainCategoryProductsScreen(
+                        mainCode: code,
+                        title: label,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         );
       },
     );
   }
 
-  Widget _buildGridItem(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildCategoryItem({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: AppColors.primary, size: 26),
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textDark,
+          const SizedBox(height: 6),
+          SizedBox(
+            width: 70,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textDark,
+              ),
             ),
           ),
         ],
@@ -310,7 +452,25 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  // (Hàm _buildProducts)
+  // ================= TIÊU ĐỀ SECTION =================
+
+  Widget _buildSectionTitle(String title) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textDark,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================= GRID SẢN PHẨM =================
+
   Widget _buildProducts() {
     final cart = Provider.of<CartProvider>(context, listen: false);
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -326,15 +486,17 @@ class _HomeContentState extends State<HomeContent> {
         }
         if (snap.hasError) {
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child:
-            Text('Lỗi tải sản phẩm: ${snap.error}', style: const TextStyle(color: Colors.red)),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Lỗi tải sản phẩm: ${snap.error}',
+              style: const TextStyle(color: Colors.red),
+            ),
           );
         }
         final items = snap.data ?? [];
         if (items.isEmpty) {
           return const Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20),
             child: Text('Không có sản phẩm để hiển thị.'),
           );
         }
@@ -342,36 +504,53 @@ class _HomeContentState extends State<HomeContent> {
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
             mainAxisExtent: 260,
           ),
           itemCount: items.length,
-          itemBuilder: (_, i) {
+          itemBuilder: (BuildContext context, int i) {
             final p = items[i];
-            return ProductCard(
-              product: p,
-              onAddToCartPressed: () async {
-
-                try {
-                  await cart.addItem(p, auth.customerCode);
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Đã thêm "${p.tenSP}" vào giỏ hàng')),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
-                    );
-                  }
-                }
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailScreen(
+                      productCode: p.maSP,
+                      // nếu màn chi tiết có nhận initialProduct thì truyền thêm:
+                      // initialProduct: p,
+                    ),
+                  ),
+                );
               },
+              child: ProductCard(
+                product: p,
+                onAddToCartPressed: () async {
+                  try {
+                    await cart.addItem(p, auth.customerCode);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Đã thêm "${p.tenSP}" vào giỏ hàng'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Lỗi: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
             );
           },
         );

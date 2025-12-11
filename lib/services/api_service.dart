@@ -8,7 +8,9 @@ import '../models/product.dart';
 import '../models/product_category.dart';
 import '../models/cart_item.dart';
 import '../models/order_model.dart';
-import '../models/promotion.dart';
+import '../models/promotion_model.dart';
+import '../models/coupon_model.dart';
+
 
 class ApiService {
   // ===== Cấu hình Host =====
@@ -21,7 +23,7 @@ class ApiService {
   static const int _port = 8080;
   static String get baseUrl => 'http://$_host:$_port/v1/api';
 
-  // ===== GHN (giữ nguyên) =====
+  // ===== GHN =====
   static const String _ghnBaseUrl =
       'https://online-gateway.ghn.vn/shiip/public-api/master-data';
   static const String _ghnToken = '732e3629-c1d9-11f0-a09b-aec1ea660f5d';
@@ -41,8 +43,7 @@ class ApiService {
   static bool get hasToken => (_token ?? '').isNotEmpty;
 
   // ===== Headers =====
-  static Map<String, String> headers(
-      {bool jsonBody = true, bool withAuth = false}) {
+  static Map<String, String> headers({bool jsonBody = true, bool withAuth = false}) {
     final h = <String, String>{};
     if (jsonBody) h['Content-Type'] = 'application/json';
     if (withAuth && hasToken) h['Authorization'] = 'Bearer $_token';
@@ -105,8 +106,8 @@ class ApiService {
       final res = await http.post(
         Uri.parse('$baseUrl/account/register'),
         headers: headers(),
-        body:
-        jsonEncode({'username': username, 'password': password, 'email': email}),
+        body: jsonEncode(
+            {'username': username, 'password': password, 'email': email}),
       );
       if (res.body.isEmpty) return "Lỗi đăng ký (body rỗng)";
       final decoded = jsonDecode(res.body);
@@ -158,7 +159,9 @@ class ApiService {
       Uri.parse('$baseUrl/products/$productCode'),
       headers: headers(),
     );
-    if (res.body.isEmpty) throw Exception('Không tìm thấy sản phẩm $productCode');
+    if (res.body.isEmpty) {
+      throw Exception('Không tìm thấy sản phẩm $productCode');
+    }
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
     final data = decoded['data'] ?? decoded['payload'] ?? decoded;
@@ -182,10 +185,10 @@ class ApiService {
   static Future<void> addFavorite(
       String customerCode, String productCode) async {
     final url = '$baseUrl/favorite';
-    final body =
-    jsonEncode({'customerCode': customerCode, 'productCode': productCode});
-    final res =
-    await http.post(Uri.parse(url), headers: headers(withAuth: true), body: body);
+    final body = jsonEncode(
+        {'customerCode': customerCode, 'productCode': productCode});
+    final res = await http.post(Uri.parse(url),
+        headers: headers(withAuth: true), body: body);
     if (res.body.isEmpty) return;
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
@@ -194,7 +197,8 @@ class ApiService {
   static Future<void> removeFavorite(
       String customerCode, String productCode) async {
     final url = '$baseUrl/favorite/$customerCode/$productCode';
-    final res = await http.post(Uri.parse(url), headers: headers(withAuth: true));
+    final res =
+    await http.post(Uri.parse(url), headers: headers(withAuth: true));
     if (res.body.isEmpty) return;
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
@@ -255,10 +259,13 @@ class ApiService {
   static Future<void> addCartItem(
       String customerCode, String productCode, int quantity) async {
     final url = '$baseUrl/cart';
-    final body = jsonEncode(
-        {'customerCode': customerCode, 'productCode': productCode, 'quantity': quantity});
-    final res =
-    await http.post(Uri.parse(url), headers: headers(withAuth: true), body: body);
+    final body = jsonEncode({
+      'customerCode': customerCode,
+      'productCode': productCode,
+      'quantity': quantity
+    });
+    final res = await http.post(Uri.parse(url),
+        headers: headers(withAuth: true), body: body);
     if (res.body.isEmpty) return;
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
@@ -267,10 +274,13 @@ class ApiService {
   static Future<void> updateCartQuantity(
       String customerCode, String productCode, int quantity) async {
     final url = '$baseUrl/cart/update-quantity';
-    final body = jsonEncode(
-        {'customerCode': customerCode, 'productCode': productCode, 'quantity': quantity});
-    final res =
-    await http.post(Uri.parse(url), headers: headers(withAuth: true), body: body);
+    final body = jsonEncode({
+      'customerCode': customerCode,
+      'productCode': productCode,
+      'quantity': quantity
+    });
+    final res = await http.post(Uri.parse(url),
+        headers: headers(withAuth: true), body: body);
     if (res.body.isEmpty) return;
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
@@ -279,7 +289,8 @@ class ApiService {
   static Future<void> removeCartItem(
       String customerCode, String productCode) async {
     final url = '$baseUrl/cart/$customerCode/$productCode';
-    final res = await http.post(Uri.parse(url), headers: headers(withAuth: true));
+    final res =
+    await http.post(Uri.parse(url), headers: headers(withAuth: true));
     if (res.body.isEmpty) return;
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
@@ -287,7 +298,8 @@ class ApiService {
 
   static Future<void> clearCartOnServer(String customerCode) async {
     final url = '$baseUrl/cart/delete-all/$customerCode';
-    final res = await http.post(Uri.parse(url), headers: headers(withAuth: true));
+    final res =
+    await http.post(Uri.parse(url), headers: headers(withAuth: true));
     if (res.body.isEmpty) return;
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
@@ -354,7 +366,8 @@ class ApiService {
   // ORDERS
   // =========================================================
 
-  /// ✅ Tạo đơn và **trả về mã đơn** để điều hướng ngay
+  /// ✅ Tạo đơn và trả về mã đơn (orderCode)
+  /// Gửi đúng cấu trúc giống OrderRequest bên backend.
   static Future<String> createOrder({
     required String customerCode,
     required List<CartItem> cartItems,
@@ -362,27 +375,35 @@ class ApiService {
     required String phoneNumber,
     required String paymentMethod, // 'Cash' | 'QR'
     String? note,
-    String? promotionCode, // voucher (optional)
-  }) async {
-    final detailsList = cartItems
-        .map((item) => {
-      'productCode': item.product.maSP,
-      'quantity': item.quantity,
-      // Nếu BE cần giá tại thời điểm đặt:
-      // 'unitPrice': item.product.gia,
-    })
-        .toList();
 
-    final bodyMap = {
+    // 👉 Voucher đang chọn (mobile hiện tại dùng 1 loại)
+    String? promotionCode, // VD: VIP5, VIP7...
+    double? promotionValue, // VD: 0.05 = 5%
+  }) async {
+    // Chi tiết sản phẩm
+    final detailsList = cartItems.map((item) {
+      return {
+        'productCode': item.product.maSP,
+        'quantity': item.quantity,
+      };
+    }).toList();
+
+    // Body gửi lên phải theo đúng OrderRequest
+    final Map<String, dynamic> bodyMap = {
       'customerCode': customerCode,
+      'employeeCode': null,
+      'promotionCustomerCode': promotionCode,
+      'promotionCustomerValue': promotionValue,
+      'couponCode': null,
+      'couponDiscountValue': null,
+      'orderType': 'Online',
+      'paymentMethod': paymentMethod, // 'Cash' hoặc 'QR'
+      'orderStatus': null,
+      'discount': null,
+      'note': (note ?? '').trim(),
       'address': address,
       'phoneNumber': phoneNumber,
-      'paymentMethod': paymentMethod,
-      'orderType': 'Online',
       'details': detailsList,
-      'note': (note ?? '').trim(),
-      if (promotionCode != null && promotionCode.isNotEmpty)
-        'promotionCode': promotionCode,
     };
 
     final res = await http.post(
@@ -392,13 +413,15 @@ class ApiService {
     );
 
     if (res.body.isEmpty) {
-      throw Exception('Tạo đơn thất bại: phản hồi rỗng');
+      throw Exception('Tạo đơn thất bại: phản hồi rỗng từ server');
     }
 
     final decoded = jsonDecode(res.body);
     _checkResponseSuccess(decoded);
+
     final data = decoded['data'] ?? decoded['payload'] ?? decoded;
 
+    // Lấy orderCode trả về
     final dynamic oc = (data is Map)
         ? (data['orderCode'] ?? data['code'] ?? data['order_code'])
         : null;
@@ -411,37 +434,28 @@ class ApiService {
 
   /// ✅ Lấy chi tiết đơn (header + details) và ENRICH tên/ảnh/đơn giá
   static Future<Order> fetchOrderDetails(String orderCode) async {
-    // 1) Header
-    final headerRes = await http.get(
+    final res = await http.get(
       Uri.parse('$baseUrl/orders/$orderCode'),
       headers: headers(withAuth: true),
     );
-    if (headerRes.body.isEmpty) {
+
+    if (res.body.isEmpty) {
       throw Exception('Không tìm thấy đơn $orderCode');
     }
-    final headerDecoded = jsonDecode(headerRes.body);
-    _checkResponseSuccess(headerDecoded);
+
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+
     final headerMap = Map<String, dynamic>.from(
-      (headerDecoded['data'] ?? headerDecoded['payload'] ?? headerDecoded) as Map,
+      (decoded['data'] ?? decoded['payload'] ?? decoded) as Map,
     );
+
     var order = Order.fromJson(headerMap);
+    var details = order.details;
 
-    // 2) Details
-    final detailsRes = await http.get(
-      Uri.parse('$baseUrl/orders/$orderCode/details'),
-      headers: headers(withAuth: true),
-    );
-    if (detailsRes.body.isEmpty) return order;
-
-    final detailsDecoded = jsonDecode(detailsRes.body);
-    _checkResponseSuccess(detailsDecoded);
-    final rawList =
-    _unwrapList(detailsDecoded).whereType<Map<String, dynamic>>().toList();
-    var details = rawList.map(OrderDetail.fromJson).toList();
-
-    // 3) ENRICH bằng /products/{code} nếu thiếu tên/ảnh/đơn giá
     final needCodes = details
-        .where((d) => d.productName.isEmpty || d.imageUrl.isEmpty || d.price <= 0)
+        .where((d) =>
+    d.productName.isEmpty || d.imageUrl.isEmpty || d.price <= 0)
         .map((d) => d.productCode)
         .toSet()
         .toList();
@@ -451,7 +465,7 @@ class ApiService {
       try {
         cache[code] = await fetchProductByCode(code);
       } catch (_) {
-        // bỏ qua từng sản phẩm nếu lỗi
+        // bỏ qua nếu lỗi 1 sản phẩm
       }
     }
 
@@ -465,12 +479,10 @@ class ApiService {
       );
     }).toList();
 
-    // 4) Gán lại vào order
-    order = order.copyWith(details: details);
-    return order;
+    return order.copyWith(details: details);
   }
 
-  /// Danh sách đơn của tôi (nếu cần)
+  /// Danh sách đơn của tôi
   static Future<List<Order>> fetchMyOrders(String customerCode) async {
     final res = await http.get(
       Uri.parse('$baseUrl/orders/customer/$customerCode'),
@@ -483,15 +495,101 @@ class ApiService {
     return list.whereType<Map<String, dynamic>>().map(Order.fromJson).toList();
   }
 
-  // Voucher (đang dùng ở Checkout)
-  static Future<List<Promotion>> fetchActivePromotions() async {
-    final url = Uri.parse('$baseUrl/promotion/active');
-    final resp = await http.get(url);
-    if (resp.statusCode != 200) {
-      throw Exception('Không tải được voucher (HTTP ${resp.statusCode})');
-    }
-    final jsonMap = jsonDecode(resp.body);
-    final List data = jsonMap['data'] ?? [];
-    return data.map((e) => Promotion.fromJson(e)).toList();
+  /// ✅ Danh sách tất cả đơn (admin) + enrich chi tiết
+  static Future<List<Order>> fetchAllOrders() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/orders'),
+      headers: headers(withAuth: true),
+    );
+    if (res.body.isEmpty) return [];
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+    final List<dynamic> list = _unwrapList(decoded);
+
+    final rawOrders =
+    list.whereType<Map<String, dynamic>>().map(Order.fromJson).toList();
+
+    final futures = rawOrders.map((o) async {
+      try {
+        return await fetchOrderDetails(o.orderCode);
+      } catch (_) {
+        return o;
+      }
+    }).toList();
+
+    return Future.wait(futures);
   }
+
+  /// 🔴 HỦY ĐƠN HÀNG (soft delete trên backend)
+  static Future<void> cancelOrder(String orderCode) async {
+    final url = Uri.parse('$baseUrl/orders/$orderCode');
+    final resp = await http.post(
+      url,
+      headers: headers(withAuth: true),
+    );
+
+    if (resp.body.isEmpty) {
+      throw Exception('Không thể hủy đơn hàng (phản hồi rỗng từ server)');
+    }
+
+    final decoded = jsonDecode(resp.body);
+    _checkResponseSuccess(decoded);
+    // nếu muốn hiện message cụ thể có thể return decoded['message']
+  }
+
+
+
+  // ================== VOUCHER (PROMOTION + COUPON) ==================
+
+  /// Lấy tất cả promotion (VIP) còn hiệu lực (status = true)
+  static Future<List<PromotionModel>> fetchPromotions() async {
+    final uri = Uri.parse('$baseUrl/promotions');
+
+    // ✅ Gửi kèm Authorization: Bearer <token>
+    final res = await http.get(
+      uri,
+      headers: headers(withAuth: true),
+    );
+
+    if (res.body.isEmpty) {
+      throw Exception('Lỗi gọi API promotions: body rỗng');
+    }
+
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+
+    final list = _unwrapList(decoded)
+        .map((e) => PromotionModel.fromJson(e))
+        .where((p) => p.status == true)
+        .toList();
+
+    return list;
+  }
+
+  /// Lấy tất cả coupon còn hiệu lực (status = true)
+  static Future<List<CouponModel>> fetchCoupons() async {
+    final uri = Uri.parse('$baseUrl/coupons');
+
+    // ✅ Gửi kèm Authorization: Bearer <token>
+    final res = await http.get(
+      uri,
+      headers: headers(withAuth: true),
+    );
+
+    if (res.body.isEmpty) {
+      throw Exception('Lỗi gọi API coupons: body rỗng');
+    }
+
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+
+    final list = _unwrapList(decoded)
+        .map((e) => CouponModel.fromJson(e))
+        .where((c) => c.status == true)
+        .toList();
+
+    return list;
+  }
+
+
 }
