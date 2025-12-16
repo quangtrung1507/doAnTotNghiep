@@ -163,6 +163,15 @@ class ProfileScreen extends StatelessWidget {
                         },
                       ),
 
+                      // ✅ THÊM: Giỏ hàng
+                      CustomListTile(
+                        icon: Icons.shopping_cart_rounded,
+                        title: 'Giỏ hàng',
+                        onTap: () {
+                          Navigator.of(context).pushNamed('/cart');
+                        },
+                      ),
+
                       const SizedBox(height: 16),
                       const Divider(
                         thickness: 1,
@@ -223,8 +232,7 @@ class ProfileScreen extends StatelessWidget {
                             );
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content:
-                                Text('Bạn đã đăng xuất thành công.'),
+                                content: Text('Bạn đã đăng xuất thành công.'),
                               ),
                             );
                           }

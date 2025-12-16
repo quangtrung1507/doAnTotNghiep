@@ -1,23 +1,21 @@
-// lib/config/payment_config.dart
-/// NHẬP THÔNG TIN NGÂN HÀNG CỦA BẠN Ở ĐÂY (theo VietQR/NAPAS)
+/// THÔNG TIN SEPAY (GIỐNG WEB)
 class PaymentConfig {
-  /// BIN của ngân hàng (VD: Vietcombank = 970436, MB = 970422,…)
-  static String bankBin = '970436';
+  // Bank hiển thị trên web (ví dụ: MBBank)
+  static String bank = 'MBBank';
 
-  /// Số tài khoản nhận tiền
-  static String accountNo = '1031760236';
+  // "acc" sepay (trên web bạn đang là VQROADYBO0539)
+  static String acc = 'VQROADYBO0539';
 
-  /// Tên chủ tài khoản (in hoa có dấu/không dấu đều được)
-  static String accountName = 'NGUYEN KHAC TRIEU';
+  // template ảnh QR (compact/compact2 tuỳ bạn)
+  static String template = 'compact';
 
-  /// Cập nhật runtime (ví dụ sau khi user đổi trong phần cài đặt)
   static void update({
-    String? bankBin_,
-    String? accountNo_,
-    String? accountName_,
+    String? bank_,
+    String? acc_,
+    String? template_,
   }) {
-    if (bankBin_ != null && bankBin_.isNotEmpty) bankBin = bankBin_;
-    if (accountNo_ != null && accountNo_.isNotEmpty) accountNo = accountNo_;
-    if (accountName_ != null && accountName_.isNotEmpty) accountName = accountName_;
+    if (bank_ != null && bank_.isNotEmpty) bank = bank_;
+    if (acc_ != null && acc_.isNotEmpty) acc = acc_;
+    if (template_ != null && template_.isNotEmpty) template = template_;
   }
 }

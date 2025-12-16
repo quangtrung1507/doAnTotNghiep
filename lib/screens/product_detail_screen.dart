@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import './checkout_screen.dart'; // ✅ SỬA: import relative đúng
 import '../models/product.dart';
 import '../services/api_service.dart';
 import '../utils/app_colors.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/favorite_provider.dart';
+import '../models/cart_item.dart'; // ✅ THÊM: để tạo CartItem tạm cho Buy Now
 
 class ProductDetailScreen extends StatefulWidget {
   final String productCode;
@@ -622,8 +624,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(
-                                'Đã thêm $_quantity "${p.tenSP}" vào giỏ hàng'),
+                            content:
+                            Text('Đã thêm $_quantity "${p.tenSP}" vào giỏ hàng'),
                           ),
                         );
                       }
@@ -647,20 +649,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
+                    // ✅ SỬA: Mua ngay -> sang Checkout luôn, không add vào giỏ
                     onPressed: () async {
                       if (_quantity < 1) {
                         setState(() => _quantity = 1);
                       }
-                      for (var i = 0; i < _quantity; i++) {
-                        await cart.addItem(p, auth.customerCode);
-                      }
-                      if (mounted) {
+
+                      final customerCode = auth.customerCode;
+                      if (customerCode == null || customerCode.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Đã thêm vào giỏ, hãy vào thanh toán'),
-                          ),
+                          const SnackBar(content: Text('Bạn cần đăng nhập để mua ngay')),
                         );
+                        Navigator.pushNamed(context, '/login');
+                        return;
                       }
+
+                      final buyNowItem = CartItem(product: p, quantity: _quantity);
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CheckoutScreen(
+                            buyNow: true,
+                            buyNowItems: [buyNowItem],
+                          ),
+                        ),
+                      );
                     },
                     child: const Text(
                       'Mua ngay',

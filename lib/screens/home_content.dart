@@ -27,6 +27,10 @@ class _HomeContentState extends State<HomeContent> {
   late Future<List<Product>> _futureProducts;
   late Future<List<ProductCategory>> _futureCategories;
 
+  // ✅ cache list sản phẩm để search local (không phụ thuộc backend search)
+  List<Product> _allProducts = [];
+  bool _hasLoadedAll = false;
+
   // ----- SEARCH -----
   final _searchCtl = TextEditingController();
 
@@ -39,9 +43,14 @@ class _HomeContentState extends State<HomeContent> {
 
   Future<List<Product>> _loadProducts() async {
     try {
-      return await ApiService.fetchAllProducts();
+      final list = await ApiService.fetchAllProducts();
+      _allProducts = list; // ✅ cache để search local
+      _hasLoadedAll = true;
+      return list;
     } catch (e) {
       debugPrint('loadProducts error: $e');
+      _allProducts = [];
+      _hasLoadedAll = true;
       return <Product>[];
     }
   }
@@ -54,11 +63,37 @@ class _HomeContentState extends State<HomeContent> {
     await _futureProducts;
   }
 
+  // ====== SEARCH LOCAL ======
+  String _norm(String s) => s.toLowerCase().trim();
+
+  bool _matchName(Product p, String q) {
+    final name = _norm(p.tenSP);
+
+    if (q.isEmpty) return true;
+
+    // match theo cả chuỗi
+    if (name.contains(q)) return true;
+
+    // match theo từng từ (AND)
+    final tokens = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (tokens.length <= 1) return false;
+    return tokens.every((t) => name.contains(t));
+  }
+
   Future<void> _doSearch(String q) async {
-    final query = q.trim();
+    final query = _norm(q);
+
+    // ✅ đảm bảo đã có cache
+    if (!_hasLoadedAll) {
+      await _loadProducts(); // chỉ gọi lần đầu nếu chưa load
+    }
+
+    final filtered = query.isEmpty
+        ? _allProducts
+        : _allProducts.where((p) => _matchName(p, query)).toList();
+
     setState(() {
-      _futureProducts =
-      query.isEmpty ? _loadProducts() : ApiService.searchProducts(query);
+      _futureProducts = Future.value(filtered);
     });
   }
 
@@ -95,12 +130,15 @@ class _HomeContentState extends State<HomeContent> {
 
   Widget _buildHeader() {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final cart = Provider.of<CartProvider>(context);          // 👈 LẤY CART
-    final cartCount = cart.items.length;                      // 👈 SỐ LƯỢNG TRONG GIỎ
+    final cart = Provider.of<CartProvider>(context); // 👈 LẤY CART
+    final cartCount = cart.items.length; // 👈 SỐ LƯỢNG TRONG GIỎ
 
-    final customerCode = auth.customerCode ?? '';
+    final username = (auth.currentUser?.username ?? '').trim();
+    final customerCode = (auth.customerCode ?? '').trim();
+
+    // Ưu tiên hiện username, nếu chưa có thì fallback về customerCode, cuối cùng là "bạn"
     final greetingName =
-    customerCode.isEmpty ? 'bạn' : customerCode; // tạm dùng customerCode
+    username.isNotEmpty ? username : (customerCode.isNotEmpty ? customerCode : 'bạn');
 
     final top = MediaQuery.of(context).padding.top;
 
@@ -150,9 +188,7 @@ class _HomeContentState extends State<HomeContent> {
                       ),
                     ),
                     Text(
-                      greetingName.isEmpty
-                          ? 'Khám phá sách hôm nay nhé'
-                          : greetingName,
+                      greetingName.isEmpty ? 'Khám phá sách hôm nay nhé' : greetingName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -473,7 +509,7 @@ class _HomeContentState extends State<HomeContent> {
 
   Widget _buildProducts() {
     final cart = Provider.of<CartProvider>(context, listen: false);
-    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final auth = Provider.of<AuthProvider>(context); // listen: true để tự rebuild
 
     return FutureBuilder<List<Product>>(
       future: _futureProducts,
@@ -521,8 +557,6 @@ class _HomeContentState extends State<HomeContent> {
                   MaterialPageRoute(
                     builder: (_) => ProductDetailScreen(
                       productCode: p.maSP,
-                      // nếu màn chi tiết có nhận initialProduct thì truyền thêm:
-                      // initialProduct: p,
                     ),
                   ),
                 );

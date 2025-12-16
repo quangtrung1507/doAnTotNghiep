@@ -367,7 +367,8 @@ class ApiService {
   // =========================================================
 
   /// ✅ Tạo đơn và trả về mã đơn (orderCode)
-  /// Gửi đúng cấu trúc giống OrderRequest bên backend.
+  /// ✅ Tạo đơn và trả về mã đơn (orderCode)
+  /// ✅ MOBILE: chỉ dùng COUPON, không dùng PROMOTION
   static Future<String> createOrder({
     required String customerCode,
     required List<CartItem> cartItems,
@@ -376,11 +377,10 @@ class ApiService {
     required String paymentMethod, // 'Cash' | 'QR'
     String? note,
 
-    // 👉 Voucher đang chọn (mobile hiện tại dùng 1 loại)
-    String? promotionCode, // VD: VIP5, VIP7...
-    double? promotionValue, // VD: 0.05 = 5%
+    // ✅ Coupon
+    String? couponCode,              // VD: SALE50, G50K
+    double? couponDiscountValue,     // VD: 0.5 hoặc 50000
   }) async {
-    // Chi tiết sản phẩm
     final detailsList = cartItems.map((item) {
       return {
         'productCode': item.product.maSP,
@@ -388,14 +388,19 @@ class ApiService {
       };
     }).toList();
 
-    // Body gửi lên phải theo đúng OrderRequest
+    // ✅ QUAN TRỌNG: promotionCustomerCode/Value LUÔN NULL để không dính FK promotion
     final Map<String, dynamic> bodyMap = {
       'customerCode': customerCode,
       'employeeCode': null,
-      'promotionCustomerCode': promotionCode,
-      'promotionCustomerValue': promotionValue,
-      'couponCode': null,
-      'couponDiscountValue': null,
+
+      'promotionCustomerCode': null,
+      'promotionCustomerValue': null,
+
+      'couponCode': (couponCode != null && couponCode.trim().isNotEmpty)
+          ? couponCode.trim()
+          : null,
+      'couponDiscountValue': couponDiscountValue,
+
       'orderType': 'Online',
       'paymentMethod': paymentMethod, // 'Cash' hoặc 'QR'
       'orderStatus': null,
@@ -421,7 +426,6 @@ class ApiService {
 
     final data = decoded['data'] ?? decoded['payload'] ?? decoded;
 
-    // Lấy orderCode trả về
     final dynamic oc = (data is Map)
         ? (data['orderCode'] ?? data['code'] ?? data['order_code'])
         : null;
@@ -431,6 +435,7 @@ class ApiService {
 
     throw Exception('Tạo đơn thành công nhưng không nhận được mã đơn hàng.');
   }
+
 
   /// ✅ Lấy chi tiết đơn (header + details) và ENRICH tên/ảnh/đơn giá
   static Future<Order> fetchOrderDetails(String orderCode) async {
@@ -589,6 +594,20 @@ class ApiService {
         .toList();
 
     return list;
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchTransfersByOrder(String orderCode) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/orders/$orderCode/transfers'),
+      headers: headers(withAuth: true),
+    );
+
+    if (res.body.isEmpty) return [];
+    final decoded = jsonDecode(res.body);
+    _checkResponseSuccess(decoded);
+
+    final list = _unwrapList(decoded);
+    return list.whereType<Map<String, dynamic>>().toList();
   }
 
 
